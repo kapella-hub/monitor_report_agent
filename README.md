@@ -1,12 +1,12 @@
 # AI Log Monitoring Agent
 
-A small FastAPI service that monitors container or file logs with AI-driven prompts. It stores targets, log sources, and prompt-based monitors in SQLite by default (with an optional Postgres connector), runs monitors on an interval, and can send email or SMS alerts.
+A small FastAPI service that monitors logs with AI-driven prompts. It stores targets, command-based prompt monitors, and run history in SQLite by default (with an optional Postgres connector), runs monitors on an interval, and can send email or SMS alerts.
 
 ## Features
 
-- Manage **Targets**, **LogSources**, **PromptMonitors**, and **MonitorRuns** via HTTP API.
-- Read logs from local files or Docker containers.
-- Stubbed LLM analysis with a clear interface to plug in a real provider later.
+- Manage **Targets**, optional **LogSources**, **PromptMonitors**, and **MonitorRuns** via HTTP API.
+- Execute explicit shell commands per monitor input to gather labeled log text.
+- Pluggable LLM analysis with OpenAI default and optional Amazon Q Business support.
 - Simple scheduler that runs monitors based on `interval_seconds`.
 - Email notifications via SMTP and stubbed SMS notifications (skipped when no recipients are configured).
 
@@ -18,17 +18,23 @@ A small FastAPI service that monitors container or file logs with AI-driven prom
 pip install -r requirements.txt
 ```
 
-2. Set environment variables for command execution safety and SMTP (email alerts optional):
+2. Set environment variables for command execution safety, LLM provider selection, and SMTP (email alerts optional):
 
 ```bash
 export COMMAND_TIMEOUT_SECONDS=60   # per-command timeout for monitor inputs
 export MAX_COMMAND_WORKERS=4        # max concurrent command inputs
+export LLM_PROVIDER=openai          # or amazon_q
+export OPENAI_API_KEY=sk-...        # required when LLM_PROVIDER=openai
+export OPENAI_MODEL=gpt-4.1-mini    # model name passed to OpenAI
+export QBUSINESS_APP_ID=app-id      # required when LLM_PROVIDER=amazon_q
+export AWS_REGION=us-east-1         # AWS region for Amazon Q Business
 export SMTP_HOST=smtp.example.com
 export SMTP_PORT=587
 export SMTP_USERNAME=user
 export SMTP_PASSWORD=pass
 export SMTP_FROM=alerts@example.com
 export MAX_RUN_HISTORY_PER_MONITOR=200 # optional: cap stored runs per monitor
+export DATABASE_BACKEND=sqlite         # or postgres if desired
 ```
 
 3. Start the API:
@@ -65,7 +71,7 @@ curl -X POST http://localhost:8000/targets \
   -d '{"name": "trade-bot-host-1", "type": "docker_host", "connection_config": {"host": "localhost"}}'
 ```
 
-### 2) Create a Docker log source
+### 2) (Optional) Create a Docker log source for reuse
 
 ```bash
 curl -X POST http://localhost:8000/log-sources \
@@ -78,22 +84,21 @@ curl -X POST http://localhost:8000/log-sources \
   }'
 ```
 
-### 3) Create a monitor with a custom prompt (5-minute interval)
+### 3) Create a monitor with explicit command inputs and a custom prompt (15-minute interval)
 
 ```bash
 curl -X POST http://localhost:8000/monitors \
   -H "Content-Type: application/json" \
   -d '{
     "name": "BTC bot anomaly detector",
-    "log_source_id": "<log-source-id>",
-    "interval_seconds": 300,
+    "target_id": "<target-id>",
+    "interval_seconds": 900,
     "prompt": "You are monitoring a crypto trading bot. Look for errors, stuck loops, abnormal fills, and API failures.",
     "inputs": [
-      {
-        "label": "FULL_LOGS",
-        "mode": "command",
-        "command": "docker logs --since 5m btc_trading_service"
-      }
+      {"label": "FULL_LOGS", "mode": "command", "command": "docker compose -f docker-compose-multi.yml logs --since 1h"},
+      {"label": "GRID_HEALTH", "mode": "command", "command": "docker compose -f docker-compose-multi.yml logs --since 1h | grep -E \"GRID DEPTH|GRID INVARIANT\""},
+      {"label": "BUDGET", "mode": "command", "command": "docker compose -f docker-compose-multi.yml logs --since 1h | grep -E \"GRID BUDGET|BUDGET-CONSTRAINED|skipped.*budget\""},
+      {"label": "ERRORS", "mode": "command", "command": "docker compose -f docker-compose-multi.yml logs --since 1h | grep -E \"ERROR|WARNING|INSUFFICIENT|failed|Exception|Traceback\""}
     ],
     "window_config": {"max_lines": 500, "max_chars": 8000},
     "notification_config": {"email_recipients": ["ops@example.com"], "notify_on": "alert_only"}
@@ -133,6 +138,21 @@ curl http://localhost:8000/health
 The response reports whether the scheduler task is alive and the database connection is reachable.
 
 Run history is automatically trimmed after each execution to keep at most `MAX_RUN_HISTORY_PER_MONITOR` records per monitor (default: 200), so long-running deployments don't accumulate unbounded history. Set the environment variable to adjust retention.
+
+### LLM contract
+
+The LLM receives a monitoring prompt and aggregated logs grouped by labels like `[FULL_LOGS]` and `[ERRORS]`. Providers must return JSON with:
+
+```json
+{
+  "status": "HEALTHY" | "WARNING" | "CRITICAL",
+  "summary": "short overall summary",
+  "report": "multi-section human-readable report",
+  "recommendations": ["next steps", "..."]
+}
+```
+
+Statuses map to internal `ok`, `warn`, and `alert` for notifications.
 
 ### 9) Update existing resources
 

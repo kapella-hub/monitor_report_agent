@@ -70,14 +70,17 @@ class Storage:
                 CREATE TABLE IF NOT EXISTS monitors (
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
-                    log_source_id TEXT NOT NULL,
+                    target_id TEXT,
+                    log_source_id TEXT,
                     interval_seconds INTEGER NOT NULL,
                     prompt TEXT NOT NULL,
                     inputs TEXT,
                     window_config TEXT,
                     notification_config TEXT,
                     last_run_at TEXT,
-                    FOREIGN KEY(log_source_id) REFERENCES log_sources(id)
+                    enabled INTEGER DEFAULT 1,
+                    FOREIGN KEY(log_source_id) REFERENCES log_sources(id),
+                    FOREIGN KEY(target_id) REFERENCES targets(id)
                 );
                 """
             )
@@ -105,6 +108,8 @@ class Storage:
             self._ensure_column(cur, "monitors", "window_config", "TEXT")
             self._ensure_column(cur, "monitors", "notification_config", "TEXT")
             self._ensure_column(cur, "monitors", "last_run_at", "TEXT")
+            self._ensure_column(cur, "monitors", "target_id", "TEXT")
+            self._ensure_column(cur, "monitors", "enabled", "INTEGER DEFAULT 1")
             self._ensure_column(cur, "monitor_runs", "finished_at", "TEXT")
             self._ensure_column(cur, "monitor_runs", "status", "TEXT")
             self._ensure_column(cur, "monitor_runs", "llm_raw_input", "TEXT")
@@ -360,20 +365,22 @@ class Storage:
         self._execute(
             """
             INSERT INTO monitors (
-                id, name, log_source_id, interval_seconds, prompt, inputs, window_config,
-                notification_config, last_run_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                id, name, target_id, log_source_id, interval_seconds, prompt, inputs, window_config,
+                notification_config, last_run_at, enabled
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 monitor["id"],
                 monitor["name"],
-                monitor["log_source_id"],
+                monitor.get("target_id"),
+                monitor.get("log_source_id"),
                 monitor["interval_seconds"],
                 monitor["prompt"],
                 self._to_json(monitor.get("inputs")),
                 self._to_json(monitor.get("window_config")),
                 self._to_json(monitor.get("notification_config")),
                 monitor.get("last_run_at"),
+                1 if monitor.get("enabled", True) else 0,
             ),
         )
         return monitor
@@ -394,19 +401,21 @@ class Storage:
         self._execute(
             """
             UPDATE monitors
-            SET name = ?, log_source_id = ?, interval_seconds = ?, prompt = ?, inputs = ?,
-                window_config = ?, notification_config = ?, last_run_at = ?
+            SET name = ?, target_id = ?, log_source_id = ?, interval_seconds = ?, prompt = ?, inputs = ?,
+                window_config = ?, notification_config = ?, last_run_at = ?, enabled = ?
             WHERE id = ?
             """,
             (
                 monitor["name"],
-                monitor["log_source_id"],
+                monitor.get("target_id"),
+                monitor.get("log_source_id"),
                 monitor["interval_seconds"],
                 monitor["prompt"],
                 self._to_json(monitor.get("inputs")),
                 self._to_json(monitor.get("window_config")),
                 self._to_json(monitor.get("notification_config")),
                 monitor.get("last_run_at"),
+                1 if monitor.get("enabled", True) else 0,
                 monitor_id,
             ),
         )
@@ -429,6 +438,7 @@ class Storage:
         return {
             "id": row["id"],
             "name": row["name"],
+            "target_id": row["target_id"],
             "log_source_id": row["log_source_id"],
             "interval_seconds": row["interval_seconds"],
             "prompt": row["prompt"],
@@ -436,6 +446,7 @@ class Storage:
             "window_config": Storage._from_json(row["window_config"]),
             "notification_config": Storage._from_json(row["notification_config"]),
             "last_run_at": row["last_run_at"],
+            "enabled": bool(row["enabled"] if row["enabled"] is not None else 1),
         }
 
     # endregion

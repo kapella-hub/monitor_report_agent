@@ -76,12 +76,14 @@ class NotificationConfig(BaseModel):
 
 class PromptMonitorCreate(BaseModel):
     name: str
-    log_source_id: str
+    target_id: str
+    log_source_id: Optional[str] = None
     interval_seconds: int = Field(gt=0)
     prompt: str
     inputs: list[MonitorInput] = Field(default_factory=list, min_items=1)
     window_config: WindowConfig | None = None
     notification_config: NotificationConfig | None = None
+    enabled: bool = True
 
     @root_validator
     def ensure_unique_labels(cls, values: dict) -> dict:
@@ -94,12 +96,14 @@ class PromptMonitorCreate(BaseModel):
 
 class PromptMonitorUpdate(BaseModel):
     name: Optional[str] = None
+    target_id: Optional[str] = None
     log_source_id: Optional[str] = None
     interval_seconds: Optional[int] = Field(default=None, gt=0)
     prompt: Optional[str] = None
     inputs: Optional[list[MonitorInput]] = Field(default=None, min_items=1)
     window_config: Optional[WindowConfig] = None
     notification_config: Optional[NotificationConfig] = None
+    enabled: Optional[bool] = None
 
     @root_validator
     def ensure_unique_labels(cls, values: dict) -> dict:

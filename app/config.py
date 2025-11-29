@@ -18,6 +18,13 @@ class Settings:
     command_timeout_seconds: int = int(getenv("COMMAND_TIMEOUT_SECONDS", "60"))
     max_command_workers: int = int(getenv("MAX_COMMAND_WORKERS", "4"))
 
+    llm_provider: str = getenv("LLM_PROVIDER", "openai")
+    openai_api_key: str | None = getenv("OPENAI_API_KEY")
+    openai_model: str | None = getenv("OPENAI_MODEL", "gpt-4.1-mini")
+    qbusiness_app_id: str | None = getenv("QBUSINESS_APP_ID")
+    aws_region: str | None = getenv("AWS_REGION")
+    llm_max_chars: int = int(getenv("LLM_MAX_CHARS", "16000"))
+
     smtp_host: str | None = getenv("SMTP_HOST")
     smtp_port: int = int(getenv("SMTP_PORT", "587"))
     smtp_username: str | None = getenv("SMTP_USERNAME")

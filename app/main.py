@@ -153,7 +153,9 @@ async def delete_log_source(source_id: str) -> dict:
 # Monitors
 @app.post("/monitors", response_model=PromptMonitor)
 async def create_monitor(payload: PromptMonitorCreate) -> PromptMonitor:
-    if not storage.get_log_source(payload.log_source_id):
+    if not storage.get_target(payload.target_id):
+        raise HTTPException(status_code=400, detail="Target not found")
+    if payload.log_source_id and not storage.get_log_source(payload.log_source_id):
         raise HTTPException(status_code=400, detail="Log source not found")
     monitor = PromptMonitor(**payload.dict())
     storage.create_monitor(monitor.dict())
@@ -178,7 +180,13 @@ async def update_monitor(monitor_id: str, payload: PromptMonitorUpdate) -> Promp
     monitor = storage.get_monitor(monitor_id)
     if not monitor:
         raise HTTPException(status_code=404, detail="Monitor not found")
-    updates = {k: v for k, v in payload.dict(exclude_unset=True).items() if v is not None}
+    updates = {
+        k: v
+        for k, v in payload.dict(exclude_unset=True).items()
+        if v is not None or isinstance(v, bool)
+    }
+    if updates.get("target_id") and not storage.get_target(updates["target_id"]):
+        raise HTTPException(status_code=400, detail="Target not found")
     if updates.get("log_source_id") and not storage.get_log_source(updates["log_source_id"]):
         raise HTTPException(status_code=400, detail="Log source not found")
     updated = storage.update_monitor(monitor_id, updates)

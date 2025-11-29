@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Iterable
 
 from .config import settings
-from .llm_client import analyze_logs_with_llm
+from .llm_client import get_llm_client
 from .notifications import send_email, send_sms
 from .storage import storage
 
@@ -29,9 +29,14 @@ async def run_monitor(monitor: dict) -> dict:
     storage.create_monitor_run(run)
 
     try:
-        log_source = storage.get_log_source(monitor["log_source_id"])
-        if not log_source:
-            raise RuntimeError("Monitor references missing log source")
+        target = storage.get_target(monitor.get("target_id")) if monitor.get("target_id") else None
+        log_source = (
+            storage.get_log_source(monitor.get("log_source_id")) if monitor.get("log_source_id") else None
+        )
+        if not target and log_source:
+            target = storage.get_target(log_source.get("target_id")) if log_source else None
+        if not target:
+            raise RuntimeError("Monitor references missing target")
 
         logs_text, success_count, total_inputs = await _collect_monitor_logs(monitor)
         if total_inputs == 0:
@@ -40,23 +45,27 @@ async def run_monitor(monitor: dict) -> dict:
             raise RuntimeError("All log inputs failed to collect")
 
         prompt = monitor["prompt"]
-        llm_input = json.dumps({
-            "system": (
-                "You are a monitoring assistant reviewing logs grouped by labels. "
-                "Use the provided labeled sections to make your decision."
-            ),
-            "prompt": prompt,
-            "logs": logs_text,
-        })
-        llm_output = await analyze_logs_with_llm(prompt, logs_text)
+        llm_input = json.dumps(
+            {
+                "system": (
+                    "You are a monitoring assistant reviewing logs grouped by labels. "
+                    "Use the provided labeled sections to make your decision."
+                ),
+                "prompt": prompt,
+                "logs": logs_text,
+            }
+        )
+        llm_client = get_llm_client()
+        llm_output = await llm_client.analyze_logs(prompt, logs_text)
+        status = _map_llm_status(llm_output.get("status"))
 
         run_updates: dict[str, Any] = {
             "finished_at": datetime.utcnow().isoformat(),
-            "status": llm_output.get("status", "error"),
+            "status": status,
             "llm_raw_input": llm_input,
             "llm_raw_output": json.dumps(llm_output),
             "summary": llm_output.get("summary"),
-            "details": llm_output.get("details"),
+            "details": llm_output.get("report") or llm_output.get("details"),
         }
         storage.update_monitor_run(run["id"], run_updates)
         run.update(run_updates)
@@ -89,7 +98,18 @@ def _should_notify(notify_on: str, status: str) -> bool:
     return False
 
 
-async def _maybe_notify(monitor: dict, run: dict, log_source: dict) -> None:
+def _map_llm_status(raw: str | None) -> str:
+    normalized = (raw or "").strip().lower()
+    if normalized in {"healthy", "ok", "normal"}:
+        return "ok"
+    if normalized in {"warning", "warn"}:
+        return "warn"
+    if normalized in {"critical", "alert", "error"}:
+        return "alert"
+    return "error"
+
+
+async def _maybe_notify(monitor: dict, run: dict, log_source: dict | None) -> None:
     config = monitor.get("notification_config") or {}
     notify_on = config.get("notify_on", "alert_only")
     status = run.get("status") or ""
@@ -99,9 +119,11 @@ async def _maybe_notify(monitor: dict, run: dict, log_source: dict) -> None:
     subject = f"Monitor {monitor['name']} status: {status}"
     body_lines = [
         f"Monitor: {monitor['name']}",
-        f"Log source: {log_source['name']}",
+        f"Target: {monitor.get('target_id') or 'n/a'}",
         f"Status: {status}",
     ]
+    if log_source:
+        body_lines.append(f"Log source: {log_source['name']}")
     if run.get("summary"):
         body_lines.append(f"Summary: {run['summary']}")
     if run.get("details"):

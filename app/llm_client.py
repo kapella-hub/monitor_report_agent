@@ -1,45 +1,166 @@
+import asyncio
 import json
-import random
-from typing import Any, Dict
+import logging
+from dataclasses import dataclass
+from typing import Any, Dict, Protocol
 
-SYSTEM_MESSAGE = (
-    "You are a monitoring assistant. You review log lines and decide whether the system is ok, "
-    "in warning state, or in alert. Respond using strict JSON as instructed."
-)
+from .config import settings
+
+logger = logging.getLogger(__name__)
 
 
-async def analyze_logs_with_llm(monitor_prompt: str, logs_text: str) -> Dict[str, Any]:
-    """
-    Placeholder LLM call.
+class LLMClient(Protocol):
+    async def analyze_logs(
+        self, monitor_prompt: str, logs_text: str, *, provider_metadata: dict | None = None
+    ) -> dict:
+        """
+        Analyze logs according to the monitor_prompt and grouped logs_text.
 
-    In production, replace this stub with a real LLM client (OpenAI, Anthropic, local model, etc.).
-    Keep the JSON contract so downstream consumers continue to function.
+        Returns a dict shaped like:
+        {
+            "status": "HEALTHY" | "WARNING" | "CRITICAL",
+            "summary": "short summary",
+            "report": "full human-readable report",
+            "recommendations": ["list", "of", "actions"],
+        }
+        """
 
-    Logs are grouped by labels in the input text, e.g.:
-    [FULL_LOGS]
-    ...
-    [ERRORS]
-    ...
-    """
-    # Very small heuristic: if "error" appears, trigger alert; if "warn", set warn; otherwise ok.
-    lowered = logs_text.lower()
-    if "error" in lowered or "exception" in lowered:
-        status = "alert"
-    elif "warn" in lowered:
-        status = "warn"
+
+@dataclass
+class OpenAIClient:
+    api_key: str
+    model: str
+    max_chars: int
+
+    async def analyze_logs(
+        self, monitor_prompt: str, logs_text: str, *, provider_metadata: dict | None = None
+    ) -> dict:
+        try:
+            from openai import AsyncOpenAI
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            raise RuntimeError("openai package is required for OpenAI provider") from exc
+
+        client = AsyncOpenAI(api_key=self.api_key)
+        truncated_logs = logs_text[-self.max_chars :] if self.max_chars and len(logs_text) > self.max_chars else logs_text
+        system_message = (
+            "You are an AI log monitoring assistant. You receive: 1) A monitoring prompt with detailed instructions. "
+            "2) Aggregated logs grouped by labels like [FULL_LOGS], [GRID_HEALTH], [BUDGET], [ERRORS]."
+            "Use the monitoring instructions and labels to classify system health."
+        )
+        user_message = (
+            "MONITORING PROMPT:\n"
+            f"{monitor_prompt}\n\n"
+            "LOGS TO ANALYZE:\n```text\n"
+            f"{truncated_logs}\n```\n\n"
+            "Follow the monitoring instructions above. Respond ONLY in JSON with the following shape:\n"
+            "{\n"
+            '"status": "HEALTHY" | "WARNING" | "CRITICAL",\n'
+            '"summary": "short overall summary (1-3 sentences)",\n'
+            '"report": "full multi-section human-readable report",\n'
+            '"recommendations": ["bullet", "points", "of", "actions"]\n'
+            "}"
+        )
+
+        response = await client.responses.create(
+            model=self.model,
+            input=[
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message},
+            ],
+        )
+
+        content = response.output[0].content[0].text if hasattr(response, "output") else response.choices[0].message.content
+        return _parse_llm_json(content)
+
+
+@dataclass
+class AmazonQClient:
+    app_id: str
+    region: str
+    max_chars: int
+
+    async def analyze_logs(
+        self, monitor_prompt: str, logs_text: str, *, provider_metadata: dict | None = None
+    ) -> dict:
+        try:
+            import boto3
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            raise RuntimeError("boto3 is required for Amazon Q provider") from exc
+
+        truncated_logs = logs_text[-self.max_chars :] if self.max_chars and len(logs_text) > self.max_chars else logs_text
+        prompt = (
+            "You are an AI log monitoring assistant. Review the monitoring prompt and the labeled log blocks. "
+            "Respond with JSON containing status, summary, report, and recommendations.\n\n"
+            f"MONITORING PROMPT:\n{monitor_prompt}\n\n"
+            "LOGS TO ANALYZE:\n"
+            f"{truncated_logs}"
+        )
+
+        def _call_q() -> dict:
+            client = boto3.client("qbusiness", region_name=self.region)
+            result = client.chat_sync(
+                applicationId=self.app_id,
+                userMessage=prompt,
+            )
+            return result
+
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, _call_q)
+        message = _extract_q_content(result)
+        return _parse_llm_json(message)
+
+
+def _extract_q_content(result: Dict[str, Any]) -> str:
+    outputs = result.get("output", []) if isinstance(result, dict) else []
+    if outputs:
+        text = outputs[0].get("text", {})
+        if text:
+            return text.get("content", "")
+    return ""
+
+
+def _parse_llm_json(raw: str) -> dict:
+    try:
+        return json.loads(raw)
+    except Exception:
+        logger.warning("LLM response not valid JSON; wrapping in error payload")
+        return {
+            "status": "CRITICAL",
+            "summary": "LLM response parsing failed",
+            "report": raw,
+            "recommendations": ["Review LLM output format"]
+        }
+
+
+_llm_client: LLMClient | None = None
+
+
+def get_llm_client() -> LLMClient:
+    global _llm_client
+    if _llm_client is not None:
+        return _llm_client
+
+    provider = (settings.llm_provider or "openai").lower()
+    if provider == "openai":
+        if not settings.openai_api_key:
+            raise RuntimeError("OPENAI_API_KEY must be set for OpenAI provider")
+        _llm_client = OpenAIClient(
+            api_key=settings.openai_api_key,
+            model=settings.openai_model or "gpt-4.1-mini",
+            max_chars=settings.llm_max_chars,
+        )
+    elif provider == "amazon_q":
+        if not settings.qbusiness_app_id or not settings.aws_region:
+            raise RuntimeError("QBUSINESS_APP_ID and AWS_REGION are required for Amazon Q provider")
+        _llm_client = AmazonQClient(
+            app_id=settings.qbusiness_app_id,
+            region=settings.aws_region,
+            max_chars=settings.llm_max_chars,
+        )
     else:
-        status = random.choice(["ok", "ok", "warn"])  # bias toward ok
+        raise RuntimeError(f"Unsupported LLM provider: {provider}")
 
-    response = {
-        "status": status,
-        "summary": f"Stub evaluation for prompt '{monitor_prompt[:30]}...'.",
-        "details": "Replace analyze_logs_with_llm with a real LLM integration for production use.",
-        "suggested_actions": [
-            "Implement a real LLM provider.",
-            "Tune prompts and thresholds based on production behavior.",
-        ],
-    }
+    return _llm_client
 
-    # Normally you would serialize / deserialize JSON to enforce the contract.
-    json.dumps(response)
-    return response
+
+# When adding new providers, implement LLMClient and extend get_llm_client above.
