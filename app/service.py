@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 async def run_monitor(monitor: dict) -> dict:
     """Execute a monitor once and persist run history."""
     provider = (monitor.get("llm_provider") or settings.llm_provider or "openai").lower()
-    provider_metadata = monitor.get("llm_provider_metadata") or _llm_provider_metadata(provider)
+    provider_metadata = _merge_provider_metadata(
+        monitor.get("llm_provider_metadata"), _llm_provider_metadata(provider)
+    )
 
     run = {
         "id": monitor.get("run_id") or monitor["id"] + "-" + datetime.utcnow().strftime("%Y%m%d%H%M%S%f"),
@@ -62,7 +64,7 @@ async def run_monitor(monitor: dict) -> dict:
             }
         )
         llm_client = get_llm_client(provider)
-        llm_output = await llm_client.analyze_logs(prompt, logs_text)
+        llm_output = await llm_client.analyze_logs(prompt, logs_text, provider_metadata=provider_metadata)
         status = _map_llm_status(llm_output.get("status"))
 
         run_updates: dict[str, Any] = {
@@ -125,6 +127,22 @@ def _llm_provider_metadata(provider: str) -> dict:
     if provider in {"stub", "dummy", "mock"}:
         return {"note": "stub provider; replace with a real LLM in production"}
     return {}
+
+
+def _merge_provider_metadata(configured: Any, defaults: dict) -> dict:
+    """Merge monitor-configured metadata with provider defaults."""
+
+    parsed: dict = {}
+    if isinstance(configured, str):
+        try:
+            parsed = json.loads(configured)
+        except Exception:
+            parsed = {}
+    elif isinstance(configured, dict):
+        parsed = configured
+
+    merged = {**(defaults or {}), **parsed}
+    return {k: v for k, v in merged.items() if v is not None}
 
 
 async def _maybe_notify(monitor: dict, run: dict, log_source: dict | None) -> None:

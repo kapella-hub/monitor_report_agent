@@ -43,7 +43,9 @@ and is useful for local development.
 
 You can also override the provider per monitor by setting `llm_provider` (and optional
 `llm_provider_metadata`) in the monitor payload when you need different backends for
-different checks.
+different checks. Metadata is merged with provider defaults, so you can override only the
+fields you need (e.g., `{ "model": "gpt-4.1" }` for OpenAI or `{ "application_id": "...",
+"region": "..." }` for Amazon Q) while still keeping sensible fallbacks.
 
 3. Start the API:
 

@@ -33,7 +33,11 @@ class OpenAIClient:
     max_chars: int
 
     async def analyze_logs(
-        self, monitor_prompt: str, logs_text: str, *, provider_metadata: dict | None = None
+        self,
+        monitor_prompt: str,
+        logs_text: str,
+        *,
+        provider_metadata: dict | None = None,
     ) -> dict:
         try:
             from openai import AsyncOpenAI
@@ -41,6 +45,7 @@ class OpenAIClient:
             raise RuntimeError("openai package is required for OpenAI provider") from exc
 
         client = AsyncOpenAI(api_key=self.api_key)
+        model_override = (provider_metadata or {}).get("model") if isinstance(provider_metadata, dict) else None
         truncated_logs = logs_text[-self.max_chars :] if self.max_chars and len(logs_text) > self.max_chars else logs_text
         system_message = (
             "You are an AI log monitoring assistant. You receive: 1) A monitoring prompt with detailed instructions. "
@@ -62,7 +67,7 @@ class OpenAIClient:
         )
 
         response = await client.responses.create(
-            model=self.model,
+            model=model_override or self.model,
             input=[
                 {"role": "system", "content": system_message},
                 {"role": "user", "content": user_message},
@@ -80,13 +85,20 @@ class AmazonQClient:
     max_chars: int
 
     async def analyze_logs(
-        self, monitor_prompt: str, logs_text: str, *, provider_metadata: dict | None = None
+        self,
+        monitor_prompt: str,
+        logs_text: str,
+        *,
+        provider_metadata: dict | None = None,
     ) -> dict:
         try:
             import boto3
         except ImportError as exc:  # pragma: no cover - optional dependency
             raise RuntimeError("boto3 is required for Amazon Q provider") from exc
 
+        meta = provider_metadata or {}
+        app_id = meta.get("application_id") or meta.get("app_id") or self.app_id
+        region = meta.get("region") or self.region
         truncated_logs = logs_text[-self.max_chars :] if self.max_chars and len(logs_text) > self.max_chars else logs_text
         prompt = (
             "You are an AI log monitoring assistant. Review the monitoring prompt and the labeled log blocks. "
@@ -97,9 +109,9 @@ class AmazonQClient:
         )
 
         def _call_q() -> dict:
-            client = boto3.client("qbusiness", region_name=self.region)
+            client = boto3.client("qbusiness", region_name=region)
             result = client.chat_sync(
-                applicationId=self.app_id,
+                applicationId=app_id,
                 userMessage=prompt,
             )
             return result
