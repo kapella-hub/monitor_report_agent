@@ -15,11 +15,6 @@ logger = logging.getLogger(__name__)
 
 async def run_monitor(monitor: dict) -> dict:
     """Execute a monitor once and persist run history."""
-    log_source = storage.get_log_source(monitor["log_source_id"])
-    if not log_source:
-        logger.error("Monitor %s references missing log source", monitor["id"])
-        return {}
-
     run = {
         "id": monitor.get("run_id") or monitor["id"] + "-" + datetime.utcnow().strftime("%Y%m%d%H%M%S%f"),
         "monitor_id": monitor["id"],
@@ -34,6 +29,10 @@ async def run_monitor(monitor: dict) -> dict:
     storage.create_monitor_run(run)
 
     try:
+        log_source = storage.get_log_source(monitor["log_source_id"])
+        if not log_source:
+            raise RuntimeError("Monitor references missing log source")
+
         logs_text, success_count, total_inputs = await _collect_monitor_logs(monitor)
         if total_inputs == 0:
             raise RuntimeError("No log input configured for this monitor")
@@ -66,16 +65,14 @@ async def run_monitor(monitor: dict) -> dict:
         return run
     except Exception as exc:
         logger.exception("Monitor %s failed", monitor["id"])
-        storage.update_monitor_run(
-            run["id"],
-            {
-                "finished_at": datetime.utcnow().isoformat(),
-                "status": "error",
-                "error_message": str(exc),
-            },
-        )
-        run["status"] = "error"
-        run["error_message"] = str(exc)
+        finished_at = datetime.utcnow().isoformat()
+        updates = {
+            "finished_at": finished_at,
+            "status": "error",
+            "error_message": str(exc),
+        }
+        storage.update_monitor_run(run["id"], updates)
+        run.update(updates)
         return run
 
 
