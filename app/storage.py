@@ -8,13 +8,30 @@ from .config import settings
 
 
 class Storage:
-    """Lightweight SQLite storage with JSON helpers."""
+    """Lightweight storage with JSON helpers and optional Postgres connector."""
 
-    def __init__(self, db_path: str | None = None):
-        self.db_path = db_path or settings.database_path
-        self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
+    def __init__(self, db_path: str | None = None, backend: str | None = None, dsn: str | None = None):
+        self.backend = (backend or settings.database_backend).lower()
         self._lock = threading.Lock()
+        self._placeholder = "?" if self.backend == "sqlite" else "%s"
+
+        if self.backend == "postgres":
+            try:
+                import psycopg
+                from psycopg.rows import dict_row
+            except Exception as exc:  # pragma: no cover - optional dependency
+                raise RuntimeError("psycopg is required for postgres backend") from exc
+
+            self.dsn = dsn or settings.database_url
+            if not self.dsn:
+                raise RuntimeError("DATABASE_URL must be set for postgres backend")
+
+            self._conn = psycopg.connect(self.dsn, autocommit=True, row_factory=dict_row)
+        else:
+            self.db_path = db_path or settings.database_path
+            self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            self._conn.row_factory = sqlite3.Row
+
         self._setup()
 
     def close(self) -> None:
@@ -64,7 +81,6 @@ class Storage:
                 );
                 """
             )
-            self._ensure_column(cur, "monitors", "inputs", "TEXT")
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS monitor_runs (
@@ -82,30 +98,36 @@ class Storage:
                 );
                 """
             )
-            self._conn.commit()
+            if self.backend == "sqlite":
+                self._conn.commit()
 
     # region Helpers
-    def _execute(self, query: str, params: Iterable[Any]) -> sqlite3.Cursor:
+    def _execute(self, query: str, params: Iterable[Any]) -> Any:
+        query = query.replace("?", self._placeholder)
         with self._lock:
             cur = self._conn.cursor()
             cur.execute(query, params)
-            self._conn.commit()
+            if self.backend == "sqlite":
+                self._conn.commit()
             return cur
 
     def _fetchvalue(self, query: str, params: Iterable[Any]) -> Any:
+        query = query.replace("?", self._placeholder)
         with self._lock:
             cur = self._conn.cursor()
             cur.execute(query, params)
             row = cur.fetchone()
             return row[0] if row else None
 
-    def _fetchone(self, query: str, params: Iterable[Any]) -> sqlite3.Row | None:
+    def _fetchone(self, query: str, params: Iterable[Any]) -> Any:
+        query = query.replace("?", self._placeholder)
         with self._lock:
             cur = self._conn.cursor()
             cur.execute(query, params)
             return cur.fetchone()
 
-    def _fetchall(self, query: str, params: Iterable[Any]) -> list[sqlite3.Row]:
+    def _fetchall(self, query: str, params: Iterable[Any]) -> list[Any]:
+        query = query.replace("?", self._placeholder)
         with self._lock:
             cur = self._conn.cursor()
             cur.execute(query, params)

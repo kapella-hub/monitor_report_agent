@@ -1,6 +1,6 @@
 # AI Log Monitoring Agent
 
-A small FastAPI service that monitors container or file logs with AI-driven prompts. It stores targets, log sources, and prompt-based monitors in SQLite, runs monitors on an interval, and can send email or SMS alerts.
+A small FastAPI service that monitors container or file logs with AI-driven prompts. It stores targets, log sources, and prompt-based monitors in SQLite by default (with an optional Postgres connector), runs monitors on an interval, and can send email or SMS alerts.
 
 ## Features
 
@@ -37,6 +37,18 @@ uvicorn app.main:app --reload
 ```
 
 The service stores data in `monitor.db` by default. Override with `DATABASE_PATH` if needed.
+
+### Optional: use Postgres instead of SQLite
+
+Provide a Postgres connection string and switch the backend to `postgres` to use a shared database:
+
+```bash
+export DATABASE_BACKEND=postgres
+export DATABASE_URL=postgresql://user:pass@localhost:5432/monitoring
+```
+
+The service will initialize the same schema in Postgres. The connector uses `psycopg`; ensure the dependency is installed (it is
+included in `requirements.txt`). If these variables are unset, SQLite remains the default.
 
 ## Example workflow
 
