@@ -92,6 +92,8 @@ class Storage:
                     started_at TEXT NOT NULL,
                     finished_at TEXT,
                     status TEXT,
+                    llm_provider TEXT,
+                    llm_provider_metadata TEXT,
                     llm_raw_input TEXT,
                     llm_raw_output TEXT,
                     summary TEXT,
@@ -110,6 +112,8 @@ class Storage:
             self._ensure_column(cur, "monitors", "last_run_at", "TEXT")
             self._ensure_column(cur, "monitors", "target_id", "TEXT")
             self._ensure_column(cur, "monitors", "enabled", "INTEGER DEFAULT 1")
+            self._ensure_column(cur, "monitor_runs", "llm_provider", "TEXT")
+            self._ensure_column(cur, "monitor_runs", "llm_provider_metadata", "TEXT")
             self._ensure_column(cur, "monitor_runs", "finished_at", "TEXT")
             self._ensure_column(cur, "monitor_runs", "status", "TEXT")
             self._ensure_column(cur, "monitor_runs", "llm_raw_input", "TEXT")
@@ -456,9 +460,9 @@ class Storage:
         self._execute(
             """
             INSERT INTO monitor_runs (
-                id, monitor_id, started_at, finished_at, status, llm_raw_input,
-                llm_raw_output, summary, details, error_message
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                id, monitor_id, started_at, finished_at, status, llm_provider,
+                llm_provider_metadata, llm_raw_input, llm_raw_output, summary, details, error_message
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 run["id"],
@@ -466,6 +470,8 @@ class Storage:
                 run["started_at"],
                 run.get("finished_at"),
                 run.get("status"),
+                run.get("llm_provider"),
+                run.get("llm_provider_metadata"),
                 run.get("llm_raw_input"),
                 run.get("llm_raw_output"),
                 run.get("summary"),
@@ -483,13 +489,15 @@ class Storage:
         self._execute(
             """
             UPDATE monitor_runs
-            SET finished_at = ?, status = ?, llm_raw_input = ?, llm_raw_output = ?,
-                summary = ?, details = ?, error_message = ?
+            SET finished_at = ?, status = ?, llm_provider = ?, llm_provider_metadata = ?,
+                llm_raw_input = ?, llm_raw_output = ?, summary = ?, details = ?, error_message = ?
             WHERE id = ?
             """,
             (
                 run.get("finished_at"),
                 run.get("status"),
+                run.get("llm_provider"),
+                run.get("llm_provider_metadata"),
                 run.get("llm_raw_input"),
                 run.get("llm_raw_output"),
                 run.get("summary"),
@@ -556,6 +564,8 @@ class Storage:
             "started_at": row["started_at"],
             "finished_at": row["finished_at"],
             "status": row["status"],
+            "llm_provider": row["llm_provider"],
+            "llm_provider_metadata": Storage._from_json(row["llm_provider_metadata"]),
             "llm_raw_input": row["llm_raw_input"],
             "llm_raw_output": row["llm_raw_output"],
             "summary": row["summary"],

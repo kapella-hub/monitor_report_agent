@@ -142,6 +142,8 @@ The response reports whether the scheduler task is alive and the database connec
 
 Run history is automatically trimmed after each execution to keep at most `MAX_RUN_HISTORY_PER_MONITOR` records per monitor (default: 200), so long-running deployments don't accumulate unbounded history. Set the environment variable to adjust retention.
 
+Each run record stores the `llm_provider` and `llm_provider_metadata` (e.g., OpenAI model name or Amazon Q region/app ID) so you can verify which backend produced a given result when debugging.
+
 ### LLM contract
 
 The LLM receives a monitoring prompt and aggregated logs grouped by labels like `[FULL_LOGS]` and `[ERRORS]`. Providers must return JSON with:

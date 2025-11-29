@@ -58,10 +58,14 @@ async def run_monitor(monitor: dict) -> dict:
         llm_client = get_llm_client()
         llm_output = await llm_client.analyze_logs(prompt, logs_text)
         status = _map_llm_status(llm_output.get("status"))
+        provider = (settings.llm_provider or "openai").lower()
+        provider_metadata = _llm_provider_metadata(provider)
 
         run_updates: dict[str, Any] = {
             "finished_at": datetime.utcnow().isoformat(),
             "status": status,
+            "llm_provider": provider,
+            "llm_provider_metadata": json.dumps(provider_metadata) if provider_metadata else None,
             "llm_raw_input": llm_input,
             "llm_raw_output": json.dumps(llm_output),
             "summary": llm_output.get("summary"),
@@ -107,6 +111,16 @@ def _map_llm_status(raw: str | None) -> str:
     if normalized in {"critical", "alert", "error"}:
         return "alert"
     return "error"
+
+
+def _llm_provider_metadata(provider: str) -> dict:
+    if provider == "openai":
+        return {"model": settings.openai_model or "gpt-4.1-mini"}
+    if provider == "amazon_q":
+        return {"application_id": settings.qbusiness_app_id, "region": settings.aws_region}
+    if provider in {"stub", "dummy", "mock"}:
+        return {"note": "stub provider; replace with a real LLM in production"}
+    return {}
 
 
 async def _maybe_notify(monitor: dict, run: dict, log_source: dict | None) -> None:

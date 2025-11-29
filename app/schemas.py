@@ -129,6 +129,8 @@ class MonitorRun(BaseModel):
     started_at: str
     finished_at: Optional[str] = None
     status: Optional[str] = None
+    llm_provider: Optional[str] = None
+    llm_provider_metadata: Optional[dict] = None
     llm_raw_input: Optional[str] = None
     llm_raw_output: Optional[str] = None
     summary: Optional[str] = None
