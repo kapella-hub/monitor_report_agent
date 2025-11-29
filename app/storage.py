@@ -117,7 +117,11 @@ class Storage:
             cur = self._conn.cursor()
             cur.execute(query, params)
             row = cur.fetchone()
-            return row[0] if row else None
+            if not row:
+                return None
+            if isinstance(row, dict):
+                return next(iter(row.values()))
+            return row[0]
 
     def _fetchone(self, query: str, params: Iterable[Any]) -> Any:
         query = query.replace("?", self._placeholder)
