@@ -110,6 +110,35 @@ class AmazonQClient:
         return _parse_llm_json(message)
 
 
+@dataclass
+class StubLLMClient:
+    """Deterministic offline client useful for development and tests."""
+
+    max_chars: int
+
+    async def analyze_logs(
+        self, monitor_prompt: str, logs_text: str, *, provider_metadata: dict | None = None
+    ) -> dict:
+        truncated_logs = logs_text[-self.max_chars :] if self.max_chars and len(logs_text) > self.max_chars else logs_text
+        lowered = truncated_logs.lower()
+        if any(token in lowered for token in ("critical", "traceback", "exception")):
+            status = "CRITICAL"
+            summary = "Critical signals detected in logs"
+        elif "warn" in lowered or "warning" in lowered:
+            status = "WARNING"
+            summary = "Warnings detected in logs"
+        else:
+            status = "HEALTHY"
+            summary = "Logs look healthy"
+
+        return {
+            "status": status,
+            "summary": summary,
+            "report": f"Prompt: {monitor_prompt[:200]}...\n\nLogs (truncated):\n{truncated_logs[:5000]}",
+            "recommendations": ["Replace stub provider with a real LLM for production analysis."],
+        }
+
+
 def _extract_q_content(result: Dict[str, Any]) -> str:
     outputs = result.get("output", []) if isinstance(result, dict) else []
     if outputs:
@@ -157,6 +186,8 @@ def get_llm_client() -> LLMClient:
             region=settings.aws_region,
             max_chars=settings.llm_max_chars,
         )
+    elif provider in {"stub", "dummy", "mock"}:
+        _llm_client = StubLLMClient(max_chars=settings.llm_max_chars)
     else:
         raise RuntimeError(f"Unsupported LLM provider: {provider}")
 

@@ -23,7 +23,7 @@ pip install -r requirements.txt
 ```bash
 export COMMAND_TIMEOUT_SECONDS=60   # per-command timeout for monitor inputs
 export MAX_COMMAND_WORKERS=4        # max concurrent command inputs
-export LLM_PROVIDER=openai          # or amazon_q
+export LLM_PROVIDER=openai          # or amazon_q or stub for offline testing
 export OPENAI_API_KEY=sk-...        # required when LLM_PROVIDER=openai
 export OPENAI_MODEL=gpt-4.1-mini    # model name passed to OpenAI
 export QBUSINESS_APP_ID=app-id      # required when LLM_PROVIDER=amazon_q
@@ -36,6 +36,9 @@ export SMTP_FROM=alerts@example.com
 export MAX_RUN_HISTORY_PER_MONITOR=200 # optional: cap stored runs per monitor
 export DATABASE_BACKEND=sqlite         # or postgres if desired
 ```
+
+Set `LLM_PROVIDER=stub` to run without external credentials; the stub client returns deterministic statuses based on log text
+and is useful for local development.
 
 3. Start the API:
 
