@@ -51,7 +51,8 @@ The service will initialize the same schema in Postgres. The connector uses `psy
 included in `requirements.txt`). If these variables are unset, SQLite remains the default.
 
 On startup, the service will automatically add any missing columns to existing SQLite or Postgres databases so upgrades keep
-schemas aligned without manual migrations.
+schemas aligned without manual migrations. Common indexes (by target, log source, and monitor run fields) are also created when
+missing to keep lookups fast as history grows.
 
 ## Example workflow
 

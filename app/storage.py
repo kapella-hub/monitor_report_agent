@@ -112,6 +112,11 @@ class Storage:
             self._ensure_column(cur, "monitor_runs", "summary", "TEXT")
             self._ensure_column(cur, "monitor_runs", "details", "TEXT")
             self._ensure_column(cur, "monitor_runs", "error_message", "TEXT")
+            # Add indexes for common lookups
+            self._ensure_index(cur, "idx_log_sources_target", "log_sources", ["target_id"])
+            self._ensure_index(cur, "idx_monitors_log_source", "monitors", ["log_source_id"])
+            self._ensure_index(cur, "idx_monitor_runs_monitor", "monitor_runs", ["monitor_id"])
+            self._ensure_index(cur, "idx_monitor_runs_started", "monitor_runs", ["started_at"])
             if self.backend == "sqlite":
                 self._conn.commit()
 
@@ -183,6 +188,27 @@ class Storage:
         if cur.fetchone():
             return
         cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+    def _ensure_index(self, cur: Any, name: str, table: str, columns: list[str]) -> None:
+        """Create an index if missing for both SQLite and Postgres."""
+
+        cols = ", ".join(columns)
+        if self.backend == "sqlite":
+            cur.execute(f"CREATE INDEX IF NOT EXISTS {name} ON {table} ({cols})")
+            return
+
+        cur.execute(
+            """
+            SELECT 1
+            FROM pg_indexes
+            WHERE schemaname = current_schema()
+              AND indexname = %s
+            """,
+            (name,),
+        )
+        if cur.fetchone():
+            return
+        cur.execute(f"CREATE INDEX {name} ON {table} ({cols})")
 
     def ping(self) -> bool:
         """Simple health check to verify the database connection is usable."""
