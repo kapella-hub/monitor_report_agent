@@ -293,3 +293,21 @@ async def get_run(run_id: str) -> MonitorRun:
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
     return MonitorRun(**run)
+
+
+@app.post("/monitors/{monitor_id}/enable")
+async def enable_monitor(monitor_id: str) -> dict:
+    monitor = storage.get_monitor(monitor_id)
+    if not monitor:
+        raise HTTPException(status_code=404, detail="Monitor not found")
+    storage.update_monitor(monitor_id, {"enabled": True})
+    return {"monitor_id": monitor_id, "enabled": True}
+
+
+@app.post("/monitors/{monitor_id}/disable")
+async def disable_monitor(monitor_id: str) -> dict:
+    monitor = storage.get_monitor(monitor_id)
+    if not monitor:
+        raise HTTPException(status_code=404, detail="Monitor not found")
+    storage.update_monitor(monitor_id, {"enabled": False})
+    return {"monitor_id": monitor_id, "enabled": False}

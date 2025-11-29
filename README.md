@@ -133,25 +133,32 @@ Add optional `timeout_seconds`, `workdir`, or `env` keys to any input if individ
 curl -X POST http://localhost:8000/monitors/<monitor-id>/run-once
 ```
 
-### 5) Test a log source connection
+### 5) Toggle a monitor on/off without editing the whole record
+
+```bash
+curl -X POST http://localhost:8000/monitors/<monitor-id>/disable
+curl -X POST http://localhost:8000/monitors/<monitor-id>/enable
+```
+
+### 6) Test a log source connection
 
 ```bash
 curl -X POST http://localhost:8000/log-sources/<log-source-id>/test
 ```
 
-### 6) List runs for a monitor
+### 7) List runs for a monitor
 
 ```bash
 curl http://localhost:8000/monitors/<monitor-id>/runs
 ```
 
-### 7) Fetch the latest run for quick status
+### 8) Fetch the latest run for quick status
 
 ```bash
 curl http://localhost:8000/monitors/<monitor-id>/runs/latest
 ```
 
-### 8) Health check
+### 9) Health check
 
 ```bash
 curl http://localhost:8000/health
@@ -160,7 +167,7 @@ curl http://localhost:8000/health
 The response reports whether the scheduler is enabled and running, the database connection is reachable, which database backend
 is active, and LLM readiness details (`llm_provider`, `llm_ready`, `llm_message`, `supported_llm_providers`).
 
-### 9) List LLM providers and readiness
+### 10) List LLM providers and readiness
 
 ```bash
 curl http://localhost:8000/llm/providers
