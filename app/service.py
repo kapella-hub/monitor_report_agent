@@ -10,6 +10,7 @@ from .config import settings
 from .llm_client import get_llm_client
 from .notifications import send_email, send_sms
 from .storage import storage
+from . import log_reader
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,9 @@ async def run_monitor(monitor: dict) -> dict:
         if not target:
             raise RuntimeError("Monitor references missing target")
 
-        logs_text, success_count, total_inputs = await _collect_monitor_logs(monitor)
+        logs_text, success_count, total_inputs = await _collect_monitor_logs(
+            monitor, log_source
+        )
         if total_inputs == 0:
             raise RuntimeError("No log input configured for this monitor")
         if success_count == 0:
@@ -182,7 +185,9 @@ async def _maybe_notify(monitor: dict, run: dict, log_source: dict | None) -> No
         await loop.run_in_executor(None, send_sms, sms_recipients, body)
 
 
-async def _collect_monitor_logs(monitor: dict) -> tuple[str, int, int]:
+async def _collect_monitor_logs(
+    monitor: dict, log_source: dict | None = None
+) -> tuple[str, int, int]:
     inputs: Iterable[dict] = monitor.get("inputs") or []
     window_config = monitor.get("window_config") or {}
     logs_by_label: dict[str, str] = {}
@@ -238,16 +243,38 @@ async def _collect_monitor_logs(monitor: dict) -> tuple[str, int, int]:
             logger.exception("Failed to collect input %s for monitor %s", label, monitor.get("id"))
             logs_by_label[label] = f"[collection_error] {exc}"
 
-    if not logs_by_label:
-        return "", success_count, len(pending)
+    if logs_by_label:
+        sections = []
+        for label, text in logs_by_label.items():
+            sections.append(f"[{label}]\n{text}")
 
-    sections = []
-    for label, text in logs_by_label.items():
-        sections.append(f"[{label}]\n{text}")
+        combined = "\n\n".join(sections)
+        combined = _truncate_output(combined, window_config)
+        return combined, success_count, len(pending)
 
-    combined = "\n\n".join(sections)
-    combined = _truncate_output(combined, window_config)
-    return combined, success_count, len(pending)
+    if log_source:
+        try:
+            content, cursor = await loop.run_in_executor(
+                None,
+                log_reader.read_logs,
+                log_source["mode"],
+                log_source["config"],
+                log_source.get("cursor_state"),
+                window_config,
+            )
+            if cursor is not None:
+                storage.update_log_source_cursor(log_source["id"], cursor)
+        except Exception:
+            logger.exception(
+                "Failed to collect logs from source %s for monitor %s", log_source.get("id"), monitor.get("id")
+            )
+            raise
+
+        labeled = f"[{log_source.get('name', 'log_source')}]\n{content}"
+        labeled = _truncate_output(labeled, window_config)
+        return labeled, 1, 1
+
+    return "", success_count, len(pending)
 
 
 def _run_command(

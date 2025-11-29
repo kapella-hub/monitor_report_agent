@@ -85,7 +85,7 @@ class PromptMonitorCreate(BaseModel):
     log_source_id: Optional[str] = None
     interval_seconds: int = Field(gt=0)
     prompt: str
-    inputs: list[MonitorInput] = Field(default_factory=list, min_items=1)
+    inputs: list[MonitorInput] = Field(default_factory=list)
     window_config: WindowConfig | None = None
     notification_config: NotificationConfig | None = None
     llm_provider: Optional[str] = None
@@ -107,6 +107,8 @@ class PromptMonitorCreate(BaseModel):
         labels = [item.label.lower() for item in inputs]
         if len(labels) != len(set(labels)):
             raise ValueError("monitor inputs must have unique labels")
+        if not inputs and not values.get("log_source_id"):
+            raise ValueError("either inputs or log_source_id must be provided")
         return values
 
 
@@ -116,7 +118,7 @@ class PromptMonitorUpdate(BaseModel):
     log_source_id: Optional[str] = None
     interval_seconds: Optional[int] = Field(default=None, gt=0)
     prompt: Optional[str] = None
-    inputs: Optional[list[MonitorInput]] = Field(default=None, min_items=1)
+    inputs: Optional[list[MonitorInput]] = Field(default=None)
     window_config: Optional[WindowConfig] = None
     notification_config: Optional[NotificationConfig] = None
     llm_provider: Optional[str] = None
@@ -138,6 +140,8 @@ class PromptMonitorUpdate(BaseModel):
         labels = [item.label.lower() for item in inputs]
         if inputs and len(labels) != len(set(labels)):
             raise ValueError("monitor inputs must have unique labels")
+        if inputs == [] and not values.get("log_source_id"):
+            raise ValueError("either inputs or log_source_id must be provided")
         return values
 
 
