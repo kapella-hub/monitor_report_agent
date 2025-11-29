@@ -42,5 +42,8 @@ class Settings:
 
     max_run_history_per_monitor: int = int(getenv("MAX_RUN_HISTORY_PER_MONITOR", "200"))
 
+    # Optional static API token protecting HTTP endpoints when set
+    api_token: str | None = getenv("API_TOKEN")
+
 
 settings = Settings()

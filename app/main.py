@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import List
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Header
 
 from .config import settings
 from . import log_reader
@@ -28,7 +28,18 @@ from .llm_client import validate_llm_provider_config, supported_llm_providers
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="AI Log Monitor")
+def require_api_key(x_api_key: str | None = Header(default=None, alias="X-API-Key")) -> None:
+    """Simple header-based API token guard when API_TOKEN is configured."""
+
+    token = settings.api_token
+    if not token:
+        return
+    if x_api_key == token:
+        return
+    raise HTTPException(status_code=401, detail="Invalid or missing API token")
+
+
+app = FastAPI(title="AI Log Monitor", dependencies=[Depends(require_api_key)])
 
 
 @app.on_event("startup")

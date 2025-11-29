@@ -41,6 +41,8 @@ export SMS_PROVIDER=twilio
 export TWILIO_ACCOUNT_SID=AC...
 export TWILIO_AUTH_TOKEN=your-token
 export TWILIO_FROM=+15555550100
+# Optional shared API token to protect HTTP endpoints
+export API_TOKEN=supersecret
 ```
 
 `LLM_PROVIDER` accepts `openai`, `amazon_q`, or stub-friendly values (`stub`, `dummy`, `mock`).
@@ -53,6 +55,8 @@ You can also override the provider per monitor by setting `llm_provider` (and op
 different checks. Metadata is merged with provider defaults, so you can override only the
 fields you need (e.g., `{ "model": "gpt-4.1" }` for OpenAI or `{ "application_id": "...",
 "region": "..." }` for Amazon Q) while still keeping sensible fallbacks.
+
+When `API_TOKEN` is set, every HTTP request must include `X-API-Key: <token>` or it will be rejected with 401. Leave it unset to disable the guard during local development.
 
 3. Start the API:
 
