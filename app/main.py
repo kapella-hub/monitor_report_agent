@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from datetime import datetime, timedelta
 from typing import List
 
 from fastapi import FastAPI, HTTPException
@@ -12,6 +13,7 @@ from .schemas import (
     LogSourceCreate,
     LogSourceUpdate,
     MonitorRun,
+    MonitorStatus,
     PromptMonitor,
     PromptMonitorCreate,
     PromptMonitorUpdate,
@@ -247,6 +249,52 @@ async def run_monitor_once(monitor_id: str) -> MonitorRun:
     storage.touch_monitor_last_run(monitor_id)
     run = await run_monitor(monitor)
     return MonitorRun(**run)
+
+
+@app.get("/monitors/{monitor_id}/status", response_model=MonitorStatus)
+async def monitor_status(monitor_id: str) -> MonitorStatus:
+    monitor = storage.get_monitor(monitor_id)
+    if not monitor:
+        raise HTTPException(status_code=404, detail="Monitor not found")
+    return _build_monitor_status(monitor)
+
+
+@app.get("/monitors/status", response_model=List[MonitorStatus])
+async def all_monitor_statuses() -> List[MonitorStatus]:
+    monitors = storage.list_monitors()
+    return [_build_monitor_status(m) for m in monitors]
+
+
+def _build_monitor_status(monitor: dict) -> MonitorStatus:
+    last_run_at = monitor.get("last_run_at")
+    interval_seconds = monitor.get("interval_seconds")
+    enabled = monitor.get("enabled", True)
+
+    now = datetime.utcnow()
+    next_run_at: str | None = None
+    due_in: float | None = None
+
+    if enabled and settings.scheduler_enabled:
+        if last_run_at:
+            last = datetime.fromisoformat(last_run_at)
+            next_dt = last + timedelta(seconds=interval_seconds)
+        else:
+            next_dt = now
+        next_run_at = next_dt.isoformat()
+        due_in = max(0.0, (next_dt - now).total_seconds())
+
+    latest = storage.latest_monitor_run(monitor["id"])
+
+    return MonitorStatus(
+        monitor_id=monitor["id"],
+        enabled=enabled,
+        interval_seconds=interval_seconds,
+        last_run_at=last_run_at,
+        next_run_at=next_run_at,
+        due_in_seconds=due_in,
+        scheduler_enabled=settings.scheduler_enabled,
+        latest_run=MonitorRun(**latest) if latest else None,
+    )
 
 
 @app.post("/log-sources/{source_id}/test")

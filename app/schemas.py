@@ -166,3 +166,14 @@ class MonitorRun(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class MonitorStatus(BaseModel):
+    monitor_id: str
+    enabled: bool
+    interval_seconds: int
+    last_run_at: Optional[str]
+    next_run_at: Optional[str]
+    due_in_seconds: Optional[float]
+    scheduler_enabled: bool
+    latest_run: Optional[MonitorRun] = None

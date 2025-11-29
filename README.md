@@ -158,7 +158,21 @@ curl http://localhost:8000/monitors/<monitor-id>/runs
 curl http://localhost:8000/monitors/<monitor-id>/runs/latest
 ```
 
-### 9) Health check
+### 9) Monitor scheduling status snapshots
+
+Fetch status for a single monitor (enabled flag, next run, due-in seconds, and latest run info):
+
+```bash
+curl http://localhost:8000/monitors/<monitor-id>/status
+```
+
+Fetch statuses for all monitors:
+
+```bash
+curl http://localhost:8000/monitors/status
+```
+
+### 10) Health check
 
 ```bash
 curl http://localhost:8000/health
@@ -167,7 +181,7 @@ curl http://localhost:8000/health
 The response reports whether the scheduler is enabled and running, the database connection is reachable, which database backend
 is active, and LLM readiness details (`llm_provider`, `llm_ready`, `llm_message`, `supported_llm_providers`).
 
-### 10) List LLM providers and readiness
+### 11) List LLM providers and readiness
 
 ```bash
 curl http://localhost:8000/llm/providers
@@ -198,7 +212,7 @@ The LLM receives a monitoring prompt and aggregated logs grouped by labels like 
 
 Statuses map to internal `ok`, `warn`, and `alert` for notifications.
 
-### 10) Update existing resources
+### 12) Update existing resources
 
 - Update a target's metadata:
 
@@ -216,7 +230,7 @@ curl -X PUT http://localhost:8000/log-sources/<log-source-id> \
   -d '{"name": "btc-bot-updated", "config": {"container_name": "btc_trading_service_v2"}}'
 ```
 
-### 11) Delete resources
+### 13) Delete resources
 
 - Delete a monitor (removes its run history first):
 
