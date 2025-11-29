@@ -101,7 +101,13 @@ curl -X POST http://localhost:8000/log-sources/<log-source-id>/test
 curl http://localhost:8000/monitors/<monitor-id>/runs
 ```
 
-### 7) Health check
+### 7) Fetch the latest run for quick status
+
+```bash
+curl http://localhost:8000/monitors/<monitor-id>/runs/latest
+```
+
+### 8) Health check
 
 ```bash
 curl http://localhost:8000/health
@@ -109,7 +115,7 @@ curl http://localhost:8000/health
 
 The response reports whether the scheduler task is alive and the database connection is reachable.
 
-### 8) Delete resources
+### 9) Delete resources
 
 - Delete a monitor (removes its run history first):
 

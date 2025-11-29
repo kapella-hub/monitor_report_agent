@@ -383,6 +383,18 @@ class Storage:
         )
         return [self._row_to_monitor_run(r) for r in rows]
 
+    def latest_monitor_run(self, monitor_id: str) -> dict | None:
+        row = self._fetchone(
+            """
+            SELECT * FROM monitor_runs
+            WHERE monitor_id = ?
+            ORDER BY started_at DESC
+            LIMIT 1
+            """,
+            (monitor_id,),
+        )
+        return self._row_to_monitor_run(row) if row else None
+
     def get_monitor_run(self, run_id: str) -> dict | None:
         row = self._fetchone("SELECT * FROM monitor_runs WHERE id = ?", (run_id,))
         return self._row_to_monitor_run(row) if row else None

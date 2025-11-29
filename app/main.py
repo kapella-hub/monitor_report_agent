@@ -209,6 +209,16 @@ async def list_runs(monitor_id: str, limit: int = 50, offset: int = 0) -> List[M
     return [MonitorRun(**r) for r in runs]
 
 
+@app.get("/monitors/{monitor_id}/runs/latest", response_model=MonitorRun)
+async def get_latest_run(monitor_id: str) -> MonitorRun:
+    if not storage.get_monitor(monitor_id):
+        raise HTTPException(status_code=404, detail="Monitor not found")
+    run = storage.latest_monitor_run(monitor_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="No runs found for monitor")
+    return MonitorRun(**run)
+
+
 @app.get("/runs/{run_id}", response_model=MonitorRun)
 async def get_run(run_id: str) -> MonitorRun:
     run = storage.get_monitor_run(run_id)
