@@ -109,6 +109,26 @@ curl http://localhost:8000/health
 
 The response reports whether the scheduler task is alive and the database connection is reachable.
 
+### 8) Delete resources
+
+- Delete a monitor (removes its run history first):
+
+```bash
+curl -X DELETE http://localhost:8000/monitors/<monitor-id>
+```
+
+- Delete a log source (must not have monitors attached):
+
+```bash
+curl -X DELETE http://localhost:8000/log-sources/<log-source-id>
+```
+
+- Delete a target (must not have log sources attached):
+
+```bash
+curl -X DELETE http://localhost:8000/targets/<target-id>
+```
+
 ## Extending
 
 - Replace `analyze_logs_with_llm` in `app/llm_client.py` with a real LLM integration (OpenAI, Anthropic, local model, etc.).

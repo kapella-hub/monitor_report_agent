@@ -92,6 +92,13 @@ class Storage:
             self._conn.commit()
             return cur
 
+    def _fetchvalue(self, query: str, params: Iterable[Any]) -> Any:
+        with self._lock:
+            cur = self._conn.cursor()
+            cur.execute(query, params)
+            row = cur.fetchone()
+            return row[0] if row else None
+
     def _fetchone(self, query: str, params: Iterable[Any]) -> sqlite3.Row | None:
         with self._lock:
             cur = self._conn.cursor()
@@ -154,6 +161,16 @@ class Storage:
         row = self._fetchone("SELECT * FROM targets WHERE id = ?", (target_id,))
         return self._row_to_target(row) if row else None
 
+    def delete_target(self, target_id: str) -> bool:
+        dependent_sources = self._fetchvalue(
+            "SELECT COUNT(1) FROM log_sources WHERE target_id = ?", (target_id,)
+        )
+        if dependent_sources:
+            raise ValueError("Cannot delete target with existing log sources")
+
+        cur = self._execute("DELETE FROM targets WHERE id = ?", (target_id,))
+        return cur.rowcount > 0
+
     @staticmethod
     def _row_to_target(row: sqlite3.Row) -> dict:
         return {
@@ -190,6 +207,16 @@ class Storage:
     def get_log_source(self, source_id: str) -> dict | None:
         row = self._fetchone("SELECT * FROM log_sources WHERE id = ?", (source_id,))
         return self._row_to_log_source(row) if row else None
+
+    def delete_log_source(self, source_id: str) -> bool:
+        dependent_monitors = self._fetchvalue(
+            "SELECT COUNT(1) FROM monitors WHERE log_source_id = ?", (source_id,)
+        )
+        if dependent_monitors:
+            raise ValueError("Cannot delete log source with existing monitors")
+
+        cur = self._execute("DELETE FROM log_sources WHERE id = ?", (source_id,))
+        return cur.rowcount > 0
 
     def update_log_source_cursor(self, source_id: str, cursor_state: dict | None) -> None:
         self._execute(
@@ -266,6 +293,12 @@ class Storage:
             ),
         )
         return monitor
+
+    def delete_monitor(self, monitor_id: str) -> bool:
+        # Remove runs first to avoid orphaned history
+        self._execute("DELETE FROM monitor_runs WHERE monitor_id = ?", (monitor_id,))
+        cur = self._execute("DELETE FROM monitors WHERE id = ?", (monitor_id,))
+        return cur.rowcount > 0
 
     def touch_monitor_last_run(self, monitor_id: str) -> None:
         self._execute(

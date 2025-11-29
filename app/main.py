@@ -81,6 +81,17 @@ async def get_target(target_id: str) -> Target:
     return Target(**target)
 
 
+@app.delete("/targets/{target_id}")
+async def delete_target(target_id: str) -> dict:
+    if not storage.get_target(target_id):
+        raise HTTPException(status_code=404, detail="Target not found")
+    try:
+        deleted = storage.delete_target(target_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"deleted": deleted}
+
+
 # Log sources
 @app.post("/log-sources", response_model=LogSource)
 async def create_log_source(payload: LogSourceCreate) -> LogSource:
@@ -102,6 +113,17 @@ async def get_log_source(source_id: str) -> LogSource:
     if not source:
         raise HTTPException(status_code=404, detail="Log source not found")
     return LogSource(**source)
+
+
+@app.delete("/log-sources/{source_id}")
+async def delete_log_source(source_id: str) -> dict:
+    if not storage.get_log_source(source_id):
+        raise HTTPException(status_code=404, detail="Log source not found")
+    try:
+        deleted = storage.delete_log_source(source_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"deleted": deleted}
 
 
 # Monitors
@@ -139,6 +161,14 @@ async def update_monitor(monitor_id: str, payload: PromptMonitorUpdate) -> Promp
     if not updated:
         raise HTTPException(status_code=404, detail="Monitor not found")
     return PromptMonitor(**updated)
+
+
+@app.delete("/monitors/{monitor_id}")
+async def delete_monitor(monitor_id: str) -> dict:
+    if not storage.get_monitor(monitor_id):
+        raise HTTPException(status_code=404, detail="Monitor not found")
+    deleted = storage.delete_monitor(monitor_id)
+    return {"deleted": deleted}
 
 
 @app.post("/monitors/{monitor_id}/run-once", response_model=MonitorRun)
