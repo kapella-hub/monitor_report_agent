@@ -165,7 +165,10 @@ async def _collect_monitor_logs(monitor: dict) -> tuple[str, int, int]:
     sections = []
     for label, text in logs_by_label.items():
         sections.append(f"[{label}]\n{text}")
-    return "\n\n".join(sections), success_count, len(pending)
+
+    combined = "\n\n".join(sections)
+    combined = _truncate_output(combined, window_config)
+    return combined, success_count, len(pending)
 
 
 def _run_command(command: str, timeout_seconds: int = 60) -> str:

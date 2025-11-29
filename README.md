@@ -137,9 +137,9 @@ rejected during validation so every run has predictable, labeled outputs.
 During execution, the monitor runner:
 
 1. Runs each command concurrently (bounded by `MAX_COMMAND_WORKERS`) so long-running inputs do not block others.
-2. Captures stdout text, truncating according to `window_config` (supports `max_lines` and `max_chars`).
+2. Captures stdout text, truncating each input according to `window_config` (supports `max_lines` and `max_chars`).
 3. Stores results keyed by label. If every input fails, the monitor run is marked as an error and notifications follow the `alert_only`/`warn_and_alert`/`all` rules.
-4. Builds a single aggregated `logs_text` grouped by label, e.g.:
+4. Builds a single aggregated `logs_text` grouped by label and applies a final truncation pass with `window_config` so the combined payload cannot exceed your defined bounds, e.g.:
 
 ```
 [FULL_LOGS]
