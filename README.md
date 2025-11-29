@@ -40,6 +40,10 @@ export DATABASE_BACKEND=sqlite         # or postgres if desired
 Set `LLM_PROVIDER=stub` to run without external credentials; the stub client returns deterministic statuses based on log text
 and is useful for local development.
 
+You can also override the provider per monitor by setting `llm_provider` (and optional
+`llm_provider_metadata`) in the monitor payload when you need different backends for
+different checks.
+
 3. Start the API:
 
 ```bash
@@ -97,6 +101,7 @@ curl -X POST http://localhost:8000/monitors \
     "target_id": "<target-id>",
     "interval_seconds": 900,
     "prompt": "You are monitoring a crypto trading bot. Look for errors, stuck loops, abnormal fills, and API failures.",
+    "llm_provider": "openai",
     "inputs": [
       {"label": "FULL_LOGS", "mode": "command", "command": "docker compose -f docker-compose-multi.yml logs --since 1h"},
       {"label": "GRID_HEALTH", "mode": "command", "command": "docker compose -f docker-compose-multi.yml logs --since 1h | grep -E \"GRID DEPTH|GRID INVARIANT\""},

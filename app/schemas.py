@@ -83,6 +83,8 @@ class PromptMonitorCreate(BaseModel):
     inputs: list[MonitorInput] = Field(default_factory=list, min_items=1)
     window_config: WindowConfig | None = None
     notification_config: NotificationConfig | None = None
+    llm_provider: Optional[str] = None
+    llm_provider_metadata: Optional[dict] = None
     enabled: bool = True
 
     @root_validator
@@ -103,6 +105,8 @@ class PromptMonitorUpdate(BaseModel):
     inputs: Optional[list[MonitorInput]] = Field(default=None, min_items=1)
     window_config: Optional[WindowConfig] = None
     notification_config: Optional[NotificationConfig] = None
+    llm_provider: Optional[str] = None
+    llm_provider_metadata: Optional[dict] = None
     enabled: Optional[bool] = None
 
     @root_validator

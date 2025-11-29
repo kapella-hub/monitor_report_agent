@@ -161,19 +161,20 @@ def _parse_llm_json(raw: str) -> dict:
         }
 
 
-_llm_client: LLMClient | None = None
+_llm_clients: dict[str, LLMClient] = {}
 
 
-def get_llm_client() -> LLMClient:
-    global _llm_client
-    if _llm_client is not None:
-        return _llm_client
+def get_llm_client(provider: str | None = None) -> LLMClient:
+    """Return a cached client for the requested provider (defaults to settings)."""
 
-    provider = (settings.llm_provider or "openai").lower()
+    provider = (provider or settings.llm_provider or "openai").lower()
+    if provider in _llm_clients:
+        return _llm_clients[provider]
+
     if provider == "openai":
         if not settings.openai_api_key:
             raise RuntimeError("OPENAI_API_KEY must be set for OpenAI provider")
-        _llm_client = OpenAIClient(
+        _llm_clients[provider] = OpenAIClient(
             api_key=settings.openai_api_key,
             model=settings.openai_model or "gpt-4.1-mini",
             max_chars=settings.llm_max_chars,
@@ -181,17 +182,17 @@ def get_llm_client() -> LLMClient:
     elif provider == "amazon_q":
         if not settings.qbusiness_app_id or not settings.aws_region:
             raise RuntimeError("QBUSINESS_APP_ID and AWS_REGION are required for Amazon Q provider")
-        _llm_client = AmazonQClient(
+        _llm_clients[provider] = AmazonQClient(
             app_id=settings.qbusiness_app_id,
             region=settings.aws_region,
             max_chars=settings.llm_max_chars,
         )
     elif provider in {"stub", "dummy", "mock"}:
-        _llm_client = StubLLMClient(max_chars=settings.llm_max_chars)
+        _llm_clients[provider] = StubLLMClient(max_chars=settings.llm_max_chars)
     else:
         raise RuntimeError(f"Unsupported LLM provider: {provider}")
 
-    return _llm_client
+    return _llm_clients[provider]
 
 
 # When adding new providers, implement LLMClient and extend get_llm_client above.

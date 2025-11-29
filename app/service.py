@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 
 async def run_monitor(monitor: dict) -> dict:
     """Execute a monitor once and persist run history."""
+    provider = (monitor.get("llm_provider") or settings.llm_provider or "openai").lower()
+    provider_metadata = monitor.get("llm_provider_metadata") or _llm_provider_metadata(provider)
+
     run = {
         "id": monitor.get("run_id") or monitor["id"] + "-" + datetime.utcnow().strftime("%Y%m%d%H%M%S%f"),
         "monitor_id": monitor["id"],
@@ -25,6 +28,8 @@ async def run_monitor(monitor: dict) -> dict:
         "summary": None,
         "details": None,
         "error_message": None,
+        "llm_provider": provider,
+        "llm_provider_metadata": json.dumps(provider_metadata) if provider_metadata else None,
     }
     storage.create_monitor_run(run)
 
@@ -55,11 +60,9 @@ async def run_monitor(monitor: dict) -> dict:
                 "logs": logs_text,
             }
         )
-        llm_client = get_llm_client()
+        llm_client = get_llm_client(provider)
         llm_output = await llm_client.analyze_logs(prompt, logs_text)
         status = _map_llm_status(llm_output.get("status"))
-        provider = (settings.llm_provider or "openai").lower()
-        provider_metadata = _llm_provider_metadata(provider)
 
         run_updates: dict[str, Any] = {
             "finished_at": datetime.utcnow().isoformat(),

@@ -77,6 +77,8 @@ class Storage:
                     inputs TEXT,
                     window_config TEXT,
                     notification_config TEXT,
+                    llm_provider TEXT,
+                    llm_provider_metadata TEXT,
                     last_run_at TEXT,
                     enabled INTEGER DEFAULT 1,
                     FOREIGN KEY(log_source_id) REFERENCES log_sources(id),
@@ -109,6 +111,8 @@ class Storage:
             self._ensure_column(cur, "monitors", "inputs", "TEXT")
             self._ensure_column(cur, "monitors", "window_config", "TEXT")
             self._ensure_column(cur, "monitors", "notification_config", "TEXT")
+            self._ensure_column(cur, "monitors", "llm_provider", "TEXT")
+            self._ensure_column(cur, "monitors", "llm_provider_metadata", "TEXT")
             self._ensure_column(cur, "monitors", "last_run_at", "TEXT")
             self._ensure_column(cur, "monitors", "target_id", "TEXT")
             self._ensure_column(cur, "monitors", "enabled", "INTEGER DEFAULT 1")
@@ -370,8 +374,8 @@ class Storage:
             """
             INSERT INTO monitors (
                 id, name, target_id, log_source_id, interval_seconds, prompt, inputs, window_config,
-                notification_config, last_run_at, enabled
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                notification_config, llm_provider, llm_provider_metadata, last_run_at, enabled
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 monitor["id"],
@@ -383,6 +387,8 @@ class Storage:
                 self._to_json(monitor.get("inputs")),
                 self._to_json(monitor.get("window_config")),
                 self._to_json(monitor.get("notification_config")),
+                monitor.get("llm_provider"),
+                self._to_json(monitor.get("llm_provider_metadata")),
                 monitor.get("last_run_at"),
                 1 if monitor.get("enabled", True) else 0,
             ),
@@ -406,7 +412,8 @@ class Storage:
             """
             UPDATE monitors
             SET name = ?, target_id = ?, log_source_id = ?, interval_seconds = ?, prompt = ?, inputs = ?,
-                window_config = ?, notification_config = ?, last_run_at = ?, enabled = ?
+                window_config = ?, notification_config = ?, llm_provider = ?, llm_provider_metadata = ?,
+                last_run_at = ?, enabled = ?
             WHERE id = ?
             """,
             (
@@ -418,6 +425,8 @@ class Storage:
                 self._to_json(monitor.get("inputs")),
                 self._to_json(monitor.get("window_config")),
                 self._to_json(monitor.get("notification_config")),
+                monitor.get("llm_provider"),
+                self._to_json(monitor.get("llm_provider_metadata")),
                 monitor.get("last_run_at"),
                 1 if monitor.get("enabled", True) else 0,
                 monitor_id,
@@ -449,6 +458,8 @@ class Storage:
             "inputs": Storage._from_json(row["inputs"]),
             "window_config": Storage._from_json(row["window_config"]),
             "notification_config": Storage._from_json(row["notification_config"]),
+            "llm_provider": row["llm_provider"],
+            "llm_provider_metadata": Storage._from_json(row["llm_provider_metadata"]),
             "last_run_at": row["last_run_at"],
             "enabled": bool(row["enabled"] if row["enabled"] is not None else 1),
         }
