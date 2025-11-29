@@ -111,9 +111,14 @@ async def _maybe_notify(monitor: dict, run: dict, log_source: dict) -> None:
     email_recipients = config.get("email_recipients", [])
     sms_recipients = config.get("sms_recipients", [])
 
+    if not email_recipients and not sms_recipients:
+        return
+
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, send_email, email_recipients, subject, body)
-    await loop.run_in_executor(None, send_sms, sms_recipients, body)
+    if email_recipients:
+        await loop.run_in_executor(None, send_email, email_recipients, subject, body)
+    if sms_recipients:
+        await loop.run_in_executor(None, send_sms, sms_recipients, body)
 
 
 async def _collect_monitor_logs(monitor: dict) -> tuple[str, int, int]:

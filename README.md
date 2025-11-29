@@ -8,7 +8,7 @@ A small FastAPI service that monitors container or file logs with AI-driven prom
 - Read logs from local files or Docker containers.
 - Stubbed LLM analysis with a clear interface to plug in a real provider later.
 - Simple scheduler that runs monitors based on `interval_seconds`.
-- Email notifications via SMTP and stubbed SMS notifications.
+- Email notifications via SMTP and stubbed SMS notifications (skipped when no recipients are configured).
 
 ## Running locally
 
