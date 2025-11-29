@@ -50,6 +50,9 @@ export DATABASE_URL=postgresql://user:pass@localhost:5432/monitoring
 The service will initialize the same schema in Postgres. The connector uses `psycopg`; ensure the dependency is installed (it is
 included in `requirements.txt`). If these variables are unset, SQLite remains the default.
 
+On startup, the service will automatically add any missing columns to existing SQLite or Postgres databases so upgrades keep
+schemas aligned without manual migrations.
+
 ## Example workflow
 
 ### 1) Create a target

@@ -98,6 +98,20 @@ class Storage:
                 );
                 """
             )
+            # Ensure columns exist when upgrading across releases
+            self._ensure_column(cur, "targets", "connection_config", "TEXT")
+            self._ensure_column(cur, "log_sources", "cursor_state", "TEXT")
+            self._ensure_column(cur, "monitors", "inputs", "TEXT")
+            self._ensure_column(cur, "monitors", "window_config", "TEXT")
+            self._ensure_column(cur, "monitors", "notification_config", "TEXT")
+            self._ensure_column(cur, "monitors", "last_run_at", "TEXT")
+            self._ensure_column(cur, "monitor_runs", "finished_at", "TEXT")
+            self._ensure_column(cur, "monitor_runs", "status", "TEXT")
+            self._ensure_column(cur, "monitor_runs", "llm_raw_input", "TEXT")
+            self._ensure_column(cur, "monitor_runs", "llm_raw_output", "TEXT")
+            self._ensure_column(cur, "monitor_runs", "summary", "TEXT")
+            self._ensure_column(cur, "monitor_runs", "details", "TEXT")
+            self._ensure_column(cur, "monitor_runs", "error_message", "TEXT")
             if self.backend == "sqlite":
                 self._conn.commit()
 
@@ -149,12 +163,26 @@ class Storage:
     def _now() -> str:
         return datetime.utcnow().isoformat()
 
-    @staticmethod
-    def _ensure_column(cur: sqlite3.Cursor, table: str, column: str, definition: str) -> None:
-        cur.execute(f"PRAGMA table_info({table})")
-        existing = {row[1] for row in cur.fetchall()}
-        if column not in existing:
-            cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+    def _ensure_column(self, cur: Any, table: str, column: str, definition: str) -> None:
+        """Add a column if it does not exist (SQLite and Postgres)."""
+
+        if self.backend == "sqlite":
+            cur.execute(f"PRAGMA table_info({table})")
+            existing = {row[1] for row in cur.fetchall()}
+            if column not in existing:
+                cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+            return
+
+        cur.execute(
+            """
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = %s AND column_name = %s
+            """,
+            (table, column),
+        )
+        if cur.fetchone():
+            return
+        cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
     def ping(self) -> bool:
         """Simple health check to verify the database connection is usable."""
