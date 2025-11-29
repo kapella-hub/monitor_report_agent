@@ -160,6 +160,18 @@ curl http://localhost:8000/health
 The response reports whether the scheduler is enabled and running, the database connection is reachable, which database backend
 is active, and LLM readiness details (`llm_provider`, `llm_ready`, `llm_message`, `supported_llm_providers`).
 
+### 9) List LLM providers and readiness
+
+```bash
+curl http://localhost:8000/llm/providers
+```
+
+Filter to a specific provider (e.g., `openai`, `amazon_q`, `stub`) to verify credential presence:
+
+```bash
+curl "http://localhost:8000/llm/providers?provider=openai"
+```
+
 Run history is automatically trimmed after each execution to keep at most `MAX_RUN_HISTORY_PER_MONITOR` records per monitor (default: 200), so long-running deployments don't accumulate unbounded history. Set the environment variable to adjust retention.
 
 Each run record stores the `llm_provider` and `llm_provider_metadata` (e.g., OpenAI model name or Amazon Q region/app ID) so you can verify which backend produced a given result when debugging.
@@ -179,7 +191,7 @@ The LLM receives a monitoring prompt and aggregated logs grouped by labels like 
 
 Statuses map to internal `ok`, `warn`, and `alert` for notifications.
 
-### 9) Update existing resources
+### 10) Update existing resources
 
 - Update a target's metadata:
 
@@ -197,7 +209,7 @@ curl -X PUT http://localhost:8000/log-sources/<log-source-id> \
   -d '{"name": "btc-bot-updated", "config": {"container_name": "btc_trading_service_v2"}}'
 ```
 
-### 10) Delete resources
+### 11) Delete resources
 
 - Delete a monitor (removes its run history first):
 

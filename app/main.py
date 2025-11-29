@@ -87,6 +87,17 @@ async def health() -> dict:
     }
 
 
+@app.get("/llm/providers")
+async def llm_providers(provider: str | None = None) -> dict:
+    """Return readiness details for all supported LLM providers or a specific one."""
+
+    if provider:
+        return {"providers": [validate_llm_provider_config(provider)]}
+
+    statuses = [validate_llm_provider_config(p) for p in supported_llm_providers()]
+    return {"providers": statuses}
+
+
 # Targets
 @app.post("/targets", response_model=Target)
 async def create_target(payload: TargetCreate) -> Target:
