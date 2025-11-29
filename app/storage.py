@@ -513,6 +513,26 @@ class Storage:
         )
         return self._row_to_monitor_run(row) if row else None
 
+    def prune_monitor_runs(self, monitor_id: str, keep: int) -> int:
+        """Delete older runs beyond the keep threshold for a monitor."""
+
+        if keep <= 0:
+            return 0
+
+        cur = self._execute(
+            """
+            DELETE FROM monitor_runs
+            WHERE monitor_id = ? AND id NOT IN (
+                SELECT id FROM monitor_runs
+                WHERE monitor_id = ?
+                ORDER BY started_at DESC
+                LIMIT ?
+            )
+            """,
+            (monitor_id, monitor_id, keep),
+        )
+        return cur.rowcount or 0
+
     def get_monitor_run(self, run_id: str) -> dict | None:
         row = self._fetchone("SELECT * FROM monitor_runs WHERE id = ?", (run_id,))
         return self._row_to_monitor_run(row) if row else None

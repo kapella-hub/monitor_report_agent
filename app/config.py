@@ -28,5 +28,7 @@ class Settings:
     sms_provider: str | None = getenv("SMS_PROVIDER")
     sms_api_key: str | None = getenv("SMS_API_KEY")
 
+    max_run_history_per_monitor: int = int(getenv("MAX_RUN_HISTORY_PER_MONITOR", "200"))
+
 
 settings = Settings()

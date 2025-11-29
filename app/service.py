@@ -61,6 +61,8 @@ async def run_monitor(monitor: dict) -> dict:
         storage.update_monitor_run(run["id"], run_updates)
         run.update(run_updates)
 
+        storage.prune_monitor_runs(monitor["id"], settings.max_run_history_per_monitor)
+
         await _maybe_notify(monitor, run, log_source)
         return run
     except Exception as exc:
@@ -73,6 +75,7 @@ async def run_monitor(monitor: dict) -> dict:
         }
         storage.update_monitor_run(run["id"], updates)
         run.update(updates)
+        storage.prune_monitor_runs(monitor["id"], settings.max_run_history_per_monitor)
         return run
 
 
