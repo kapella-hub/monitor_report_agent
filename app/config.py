@@ -35,8 +35,10 @@ class Settings:
     smtp_from: str | None = getenv("SMTP_FROM")
     smtp_use_tls: bool = getenv("SMTP_USE_TLS", "true").lower() == "true"
 
-    sms_provider: str | None = getenv("SMS_PROVIDER")
-    sms_api_key: str | None = getenv("SMS_API_KEY")
+    sms_provider: str | None = getenv("SMS_PROVIDER", "stub")
+    twilio_account_sid: str | None = getenv("TWILIO_ACCOUNT_SID")
+    twilio_auth_token: str | None = getenv("TWILIO_AUTH_TOKEN")
+    twilio_from_number: str | None = getenv("TWILIO_FROM")
 
     max_run_history_per_monitor: int = int(getenv("MAX_RUN_HISTORY_PER_MONITOR", "200"))
 

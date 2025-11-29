@@ -8,7 +8,7 @@ A small FastAPI service that monitors logs with AI-driven prompts. It stores tar
 - Execute explicit shell commands per monitor input to gather labeled log text.
 - Pluggable LLM analysis with OpenAI default and optional Amazon Q Business support.
 - Simple scheduler that runs monitors based on `interval_seconds`.
-- Email notifications via SMTP and stubbed SMS notifications (skipped when no recipients are configured).
+- Email notifications via SMTP and SMS via Twilio when configured (falls back to stub logging when no SMS provider is set or recipients are missing).
 
 ## Running locally
 
@@ -36,6 +36,11 @@ export SMTP_FROM=alerts@example.com
 export MAX_RUN_HISTORY_PER_MONITOR=200 # optional: cap stored runs per monitor
 export DATABASE_BACKEND=sqlite         # or postgres if desired
 export DEFAULT_TARGET_NAME=local       # optional: auto-created target name when none exist
+# Optional Twilio SMS settings (defaults to stub logging)
+export SMS_PROVIDER=twilio
+export TWILIO_ACCOUNT_SID=AC...
+export TWILIO_AUTH_TOKEN=your-token
+export TWILIO_FROM=+15555550100
 ```
 
 `LLM_PROVIDER` accepts `openai`, `amazon_q`, or stub-friendly values (`stub`, `dummy`, `mock`).
