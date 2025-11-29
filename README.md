@@ -38,6 +38,8 @@ export DATABASE_BACKEND=sqlite         # or postgres if desired
 export DEFAULT_TARGET_NAME=local       # optional: auto-created target name when none exist
 ```
 
+`LLM_PROVIDER` accepts `openai`, `amazon_q`, or stub-friendly values (`stub`, `dummy`, `mock`).
+
 Set `LLM_PROVIDER=stub` to run without external credentials; the stub client returns deterministic statuses based on log text
 and is useful for local development.
 

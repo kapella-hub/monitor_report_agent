@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, root_validator, validator
 
 Mode = str
 NotifyOn = str
+ALLOWED_LLM_PROVIDERS = {"openai", "amazon_q", "stub", "dummy", "mock"}
 
 
 def generate_id() -> str:
@@ -90,6 +91,15 @@ class PromptMonitorCreate(BaseModel):
     llm_provider_metadata: Optional[dict] = None
     enabled: bool = True
 
+    @validator("llm_provider")
+    def validate_llm_provider(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        normalized = value.lower()
+        if normalized not in ALLOWED_LLM_PROVIDERS:
+            raise ValueError(f"llm_provider must be one of {sorted(ALLOWED_LLM_PROVIDERS)}")
+        return normalized
+
     @root_validator
     def ensure_unique_labels(cls, values: dict) -> dict:
         inputs = values.get("inputs") or []
@@ -111,6 +121,15 @@ class PromptMonitorUpdate(BaseModel):
     llm_provider: Optional[str] = None
     llm_provider_metadata: Optional[dict] = None
     enabled: Optional[bool] = None
+
+    @validator("llm_provider")
+    def validate_llm_provider(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        normalized = value.lower()
+        if normalized not in ALLOWED_LLM_PROVIDERS:
+            raise ValueError(f"llm_provider must be one of {sorted(ALLOWED_LLM_PROVIDERS)}")
+        return normalized
 
     @root_validator
     def ensure_unique_labels(cls, values: dict) -> dict:
