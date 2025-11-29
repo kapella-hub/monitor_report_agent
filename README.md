@@ -147,7 +147,8 @@ curl http://localhost:8000/monitors/<monitor-id>/runs/latest
 curl http://localhost:8000/health
 ```
 
-The response reports whether the scheduler task is alive and the database connection is reachable.
+The response reports whether the scheduler task is alive, the database connection is reachable, the active database backend,
+and the configured LLM provider.
 
 Run history is automatically trimmed after each execution to keep at most `MAX_RUN_HISTORY_PER_MONITOR` records per monitor (default: 200), so long-running deployments don't accumulate unbounded history. Set the environment variable to adjust retention.
 

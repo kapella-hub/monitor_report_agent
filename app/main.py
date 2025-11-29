@@ -70,6 +70,8 @@ async def health() -> dict:
         "status": status,
         "scheduler_running": scheduler_running,
         "database": db_ok,
+        "database_backend": storage.backend,
+        "llm_provider": settings.llm_provider,
     }
 
 
