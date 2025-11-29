@@ -35,6 +35,7 @@ export SMTP_PASSWORD=pass
 export SMTP_FROM=alerts@example.com
 export MAX_RUN_HISTORY_PER_MONITOR=200 # optional: cap stored runs per monitor
 export DATABASE_BACKEND=sqlite         # or postgres if desired
+export DEFAULT_TARGET_NAME=local       # optional: auto-created target name when none exist
 ```
 
 Set `LLM_PROVIDER=stub` to run without external credentials; the stub client returns deterministic statuses based on log text
@@ -51,6 +52,9 @@ uvicorn app.main:app --reload
 ```
 
 The service stores data in `monitor.db` by default. Override with `DATABASE_PATH` if needed.
+
+On startup, the service will auto-create a single local target named by `DEFAULT_TARGET_NAME` when no targets exist. You can
+rename it via the env var or create additional targets via the API at any time.
 
 ### Optional: use Postgres instead of SQLite
 

@@ -30,6 +30,7 @@ app = FastAPI(title="AI Log Monitor")
 
 @app.on_event("startup")
 async def startup_event() -> None:
+    _ensure_default_target()
     # Kick off scheduler
     app.state.scheduler_task = asyncio.create_task(
         monitor_dispatcher(run_monitor, settings.scheduler_tick_seconds)
@@ -47,6 +48,16 @@ async def shutdown_event() -> None:
         except asyncio.CancelledError:
             logger.info("Scheduler task cancelled cleanly")
     storage.close()
+
+
+def _ensure_default_target() -> None:
+    """Create a default local target when none exist for quicker setup."""
+    existing = storage.list_targets()
+    if existing:
+        return
+    default_target = Target(name=settings.default_target_name, type="local")
+    storage.create_target(default_target.dict())
+    logger.info("Created default target '%s'", settings.default_target_name)
 
 
 @app.get("/health")
