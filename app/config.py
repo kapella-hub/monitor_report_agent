@@ -14,6 +14,7 @@ class Settings:
     database_backend: str = getenv("DATABASE_BACKEND", "sqlite")
     database_path: str = getenv("DATABASE_PATH", "./monitor.db")
     database_url: str | None = getenv("DATABASE_URL")
+    scheduler_enabled: bool = getenv("SCHEDULER_ENABLED", "true").lower() == "true"
     scheduler_tick_seconds: int = int(getenv("SCHEDULER_TICK_SECONDS", "1"))
     command_timeout_seconds: int = int(getenv("COMMAND_TIMEOUT_SECONDS", "60"))
     max_command_workers: int = int(getenv("MAX_COMMAND_WORKERS", "4"))

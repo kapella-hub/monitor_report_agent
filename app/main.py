@@ -32,10 +32,14 @@ app = FastAPI(title="AI Log Monitor")
 async def startup_event() -> None:
     _ensure_default_target()
     # Kick off scheduler
-    app.state.scheduler_task = asyncio.create_task(
-        monitor_dispatcher(run_monitor, settings.scheduler_tick_seconds)
-    )
-    logger.info("Scheduler started with tick=%s", settings.scheduler_tick_seconds)
+    if settings.scheduler_enabled:
+        app.state.scheduler_task = asyncio.create_task(
+            monitor_dispatcher(run_monitor, settings.scheduler_tick_seconds)
+        )
+        logger.info("Scheduler started with tick=%s", settings.scheduler_tick_seconds)
+    else:
+        app.state.scheduler_task = None
+        logger.info("Scheduler disabled via SCHEDULER_ENABLED=false")
 
 
 @app.on_event("shutdown")
@@ -65,9 +69,12 @@ async def health() -> dict:
     scheduler_task = getattr(app.state, "scheduler_task", None)
     scheduler_running = bool(scheduler_task) and not scheduler_task.cancelled()
     db_ok = storage.ping()
-    status = "ok" if scheduler_running and db_ok else "degraded"
+    expected_scheduler = settings.scheduler_enabled
+    scheduler_ok = scheduler_running or not expected_scheduler
+    status = "ok" if scheduler_ok and db_ok else "degraded"
     return {
         "status": status,
+        "scheduler_enabled": expected_scheduler,
         "scheduler_running": scheduler_running,
         "database": db_ok,
         "database_backend": storage.backend,

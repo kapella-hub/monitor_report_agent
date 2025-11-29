@@ -55,6 +55,10 @@ uvicorn app.main:app --reload
 
 The service stores data in `monitor.db` by default. Override with `DATABASE_PATH` if needed.
 
+Set `SCHEDULER_ENABLED=false` to disable the background dispatcher when you only want manual `run-once`
+invocations (helpful for local testing or running under an external scheduler). When disabled, health
+reports the scheduler as disabled but still returns `status="ok"` if the database is reachable.
+
 On startup, the service will auto-create a single local target named by `DEFAULT_TARGET_NAME` when no targets exist. You can
 rename it via the env var or create additional targets via the API at any time.
 
@@ -151,8 +155,8 @@ curl http://localhost:8000/monitors/<monitor-id>/runs/latest
 curl http://localhost:8000/health
 ```
 
-The response reports whether the scheduler task is alive, the database connection is reachable, the active database backend,
-and the configured LLM provider.
+The response reports whether the scheduler is enabled and running, the database connection is reachable, the active database
+backend, and the configured LLM provider.
 
 Run history is automatically trimmed after each execution to keep at most `MAX_RUN_HISTORY_PER_MONITOR` records per monitor (default: 200), so long-running deployments don't accumulate unbounded history. Set the environment variable to adjust retention.
 
