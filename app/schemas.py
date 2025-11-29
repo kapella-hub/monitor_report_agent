@@ -4,9 +4,10 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field, root_validator, validator
 
+from .llm_client import SUPPORTED_LLM_PROVIDERS
+
 Mode = str
 NotifyOn = str
-ALLOWED_LLM_PROVIDERS = {"openai", "amazon_q", "stub", "dummy", "mock"}
 
 
 def generate_id() -> str:
@@ -96,8 +97,8 @@ class PromptMonitorCreate(BaseModel):
         if value is None:
             return value
         normalized = value.lower()
-        if normalized not in ALLOWED_LLM_PROVIDERS:
-            raise ValueError(f"llm_provider must be one of {sorted(ALLOWED_LLM_PROVIDERS)}")
+        if normalized not in SUPPORTED_LLM_PROVIDERS:
+            raise ValueError(f"llm_provider must be one of {sorted(SUPPORTED_LLM_PROVIDERS)}")
         return normalized
 
     @root_validator
@@ -127,8 +128,8 @@ class PromptMonitorUpdate(BaseModel):
         if value is None:
             return value
         normalized = value.lower()
-        if normalized not in ALLOWED_LLM_PROVIDERS:
-            raise ValueError(f"llm_provider must be one of {sorted(ALLOWED_LLM_PROVIDERS)}")
+        if normalized not in SUPPORTED_LLM_PROVIDERS:
+            raise ValueError(f"llm_provider must be one of {sorted(SUPPORTED_LLM_PROVIDERS)}")
         return normalized
 
     @root_validator

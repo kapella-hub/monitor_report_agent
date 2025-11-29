@@ -21,6 +21,7 @@ from .schemas import (
 )
 from .service import run_monitor
 from .storage import storage
+from .llm_client import validate_llm_provider_config, supported_llm_providers
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -71,14 +72,18 @@ async def health() -> dict:
     db_ok = storage.ping()
     expected_scheduler = settings.scheduler_enabled
     scheduler_ok = scheduler_running or not expected_scheduler
-    status = "ok" if scheduler_ok and db_ok else "degraded"
+    llm_status = validate_llm_provider_config()
+    status = "ok" if scheduler_ok and db_ok and llm_status.get("ready") else "degraded"
     return {
         "status": status,
         "scheduler_enabled": expected_scheduler,
         "scheduler_running": scheduler_running,
         "database": db_ok,
         "database_backend": storage.backend,
-        "llm_provider": settings.llm_provider,
+        "llm_provider": llm_status.get("provider"),
+        "llm_ready": llm_status.get("ready"),
+        "llm_message": llm_status.get("message"),
+        "supported_llm_providers": supported_llm_providers(),
     }
 
 

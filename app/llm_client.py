@@ -8,6 +8,8 @@ from .config import settings
 
 logger = logging.getLogger(__name__)
 
+SUPPORTED_LLM_PROVIDERS = {"openai", "amazon_q", "stub", "dummy", "mock"}
+
 
 class LLMClient(Protocol):
     async def analyze_logs(
@@ -176,6 +178,10 @@ def _parse_llm_json(raw: str) -> dict:
 _llm_clients: dict[str, LLMClient] = {}
 
 
+def supported_llm_providers() -> list[str]:
+    return sorted(SUPPORTED_LLM_PROVIDERS)
+
+
 def get_llm_client(provider: str | None = None) -> LLMClient:
     """Return a cached client for the requested provider (defaults to settings)."""
 
@@ -208,3 +214,54 @@ def get_llm_client(provider: str | None = None) -> LLMClient:
 
 
 # When adding new providers, implement LLMClient and extend get_llm_client above.
+
+
+def validate_llm_provider_config(provider: str | None = None) -> dict:
+    """Return readiness details for the configured provider without making API calls."""
+
+    normalized = (provider or settings.llm_provider or "openai").lower()
+    if normalized not in SUPPORTED_LLM_PROVIDERS:
+        return {
+            "provider": normalized,
+            "ready": False,
+            "message": f"Unsupported LLM provider: {normalized}",
+            "supported": supported_llm_providers(),
+        }
+
+    if normalized == "openai":
+        if not settings.openai_api_key:
+            return {
+                "provider": normalized,
+                "ready": False,
+                "message": "Missing OPENAI_API_KEY",
+                "supported": supported_llm_providers(),
+            }
+        return {
+            "provider": normalized,
+            "ready": True,
+            "message": "OpenAI configured",
+            "supported": supported_llm_providers(),
+        }
+
+    if normalized == "amazon_q":
+        if not settings.qbusiness_app_id or not settings.aws_region:
+            return {
+                "provider": normalized,
+                "ready": False,
+                "message": "Missing QBUSINESS_APP_ID or AWS_REGION",
+                "supported": supported_llm_providers(),
+            }
+        return {
+            "provider": normalized,
+            "ready": True,
+            "message": "Amazon Q configured",
+            "supported": supported_llm_providers(),
+        }
+
+    # Stub-like providers never require credentials
+    return {
+        "provider": normalized,
+        "ready": True,
+        "message": "Stub provider ready",
+        "supported": supported_llm_providers(),
+    }
