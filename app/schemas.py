@@ -28,6 +28,12 @@ class Target(TargetCreate):
         orm_mode = True
 
 
+class TargetUpdate(BaseModel):
+    name: Optional[str] = None
+    type: Optional[str] = None
+    connection_config: Optional[dict[str, Any]] = None
+
+
 # Log sources
 class LogSourceCreate(BaseModel):
     target_id: str
@@ -44,6 +50,14 @@ class LogSource(LogSourceCreate):
         orm_mode = True
 
 
+class LogSourceUpdate(BaseModel):
+    target_id: Optional[str] = None
+    name: Optional[str] = None
+    mode: Optional[Mode] = None
+    config: Optional[dict[str, Any]] = None
+    cursor_state: Optional[dict[str, Any]] = None
+
+
 # Monitors
 class WindowConfig(BaseModel):
     max_lines: int | None = Field(default=500, ge=1)
@@ -52,7 +66,7 @@ class WindowConfig(BaseModel):
 
 class MonitorInput(BaseModel):
     label: str
-    mode: str = Field(regex=r"^command$")
+    mode: str = Field(pattern=r"^command$")
     command: str
     timeout_seconds: int | None = Field(default=None, gt=0)
     workdir: str | None = None
@@ -101,7 +115,7 @@ class PromptMonitorCreate(BaseModel):
             raise ValueError(f"llm_provider must be one of {sorted(SUPPORTED_LLM_PROVIDERS)}")
         return normalized
 
-    @root_validator
+    @root_validator(skip_on_failure=True)
     def ensure_unique_labels(cls, values: dict) -> dict:
         inputs = values.get("inputs") or []
         labels = [item.label.lower() for item in inputs]
@@ -134,7 +148,7 @@ class PromptMonitorUpdate(BaseModel):
             raise ValueError(f"llm_provider must be one of {sorted(SUPPORTED_LLM_PROVIDERS)}")
         return normalized
 
-    @root_validator
+    @root_validator(skip_on_failure=True)
     def ensure_unique_labels(cls, values: dict) -> dict:
         inputs = values.get("inputs") or []
         labels = [item.label.lower() for item in inputs]
