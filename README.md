@@ -326,3 +326,12 @@ log lines...
 ```
 
 Use these labels (e.g. `FULL_LOGS`, `GRID_HEALTH`, `BUDGET`, `ERRORS`) together with the instructions in `monitor_prompt` to perform your analysis.
+
+## Testing
+
+Install test dependencies (included in `requirements.txt`) and run pytest:
+
+```bash
+pip install -r requirements.txt
+pytest
+```
