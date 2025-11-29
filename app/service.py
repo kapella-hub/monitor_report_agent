@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import subprocess
 from datetime import datetime
 from typing import Any, Iterable
@@ -173,10 +174,15 @@ async def _collect_monitor_logs(monitor: dict) -> tuple[str, int, int]:
     loop = asyncio.get_running_loop()
     semaphore = asyncio.Semaphore(settings.max_command_workers)
 
-    async def _collect(label: str, command: str) -> str:
+    async def _collect(label: str, command: str, *, timeout: int | None, workdir: str | None, env: dict | None) -> str:
         async with semaphore:
             return await loop.run_in_executor(
-                None, _run_command, command, settings.command_timeout_seconds
+                None,
+                _run_command,
+                command,
+                timeout if timeout is not None else settings.command_timeout_seconds,
+                workdir,
+                env,
             )
 
     pending: list[tuple[str, asyncio.Task[str]]] = []
@@ -192,7 +198,18 @@ async def _collect_monitor_logs(monitor: dict) -> tuple[str, int, int]:
             logger.warning("Missing command for monitor %s input %s", monitor.get("id"), label)
             continue
 
-        pending.append((label, asyncio.create_task(_collect(label, command))))
+        timeout_override = input_def.get("timeout_seconds")
+        workdir = input_def.get("workdir")
+        env = input_def.get("env") if isinstance(input_def.get("env"), dict) else None
+
+        pending.append(
+            (
+                label,
+                asyncio.create_task(
+                    _collect(label, command, timeout=timeout_override, workdir=workdir, env=env)
+                ),
+            )
+        )
 
     for label, task in pending:
         try:
@@ -215,13 +232,21 @@ async def _collect_monitor_logs(monitor: dict) -> tuple[str, int, int]:
     return combined, success_count, len(pending)
 
 
-def _run_command(command: str, timeout_seconds: int = 60) -> str:
+def _run_command(
+    command: str, timeout_seconds: int = 60, workdir: str | None = None, env: dict | None = None
+) -> str:
+    merged_env = os.environ.copy()
+    if env:
+        merged_env.update({str(k): str(v) for k, v in env.items()})
+
     completed = subprocess.run(
         command,
         shell=True,
         capture_output=True,
         text=True,
         timeout=timeout_seconds,
+        cwd=workdir,
+        env=merged_env,
     )
     if completed.returncode != 0:
         raise RuntimeError(

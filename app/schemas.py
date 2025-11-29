@@ -52,6 +52,9 @@ class MonitorInput(BaseModel):
     label: str
     mode: str = Field(regex=r"^command$")
     command: str
+    timeout_seconds: int | None = Field(default=None, gt=0)
+    workdir: str | None = None
+    env: dict[str, str] | None = None
 
     @validator("label")
     def label_must_not_be_blank(cls, value: str) -> str:

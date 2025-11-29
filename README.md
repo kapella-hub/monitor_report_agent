@@ -117,6 +117,8 @@ curl -X POST http://localhost:8000/monitors \
   }'
 ```
 
+Add optional `timeout_seconds`, `workdir`, or `env` keys to any input if individual commands need different limits, working directories, or environment overrides than the global defaults.
+
 ### 4) Trigger a manual run
 
 ```bash
@@ -221,13 +223,19 @@ Each PromptMonitor defines exactly which commands to run so the agent never "gue
 {
   "label": "GRID_HEALTH",
   "mode": "command",
-  "command": "docker compose -f docker-compose-multi.yml logs --since 1h | grep -E \"GRID DEPTH|GRID INVARIANT\""
+  "command": "docker compose -f docker-compose-multi.yml logs --since 1h | grep -E \"GRID DEPTH|GRID INVARIANT\"",
+  "timeout_seconds": 90,
+  "workdir": "/opt/trading",
+  "env": {"TRADING_ENV": "prod"}
 }
 ```
 
 - `label`: short identifier for this slice of logs (e.g. `FULL_LOGS`, `GRID_HEALTH`, `BUDGET`, `ERRORS`).
 - `mode`: currently `command` (runs a shell command and captures stdout). More modes can be added later.
 - `command`: the exact shell command to run on the target host to fetch logs.
+- `timeout_seconds`: optional per-input timeout; falls back to `COMMAND_TIMEOUT_SECONDS` when omitted.
+- `workdir`: optional working directory for the command execution.
+- `env`: optional map of environment variables merged into the process environment for this command.
 
 Labels must be unique within a monitor, and both `label` and `command` must be non-empty strings. Inputs with blank values are
 rejected during validation so every run has predictable, labeled outputs.
