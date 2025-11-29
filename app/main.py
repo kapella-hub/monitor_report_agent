@@ -10,12 +10,14 @@ from .scheduler import monitor_dispatcher
 from .schemas import (
     LogSource,
     LogSourceCreate,
+    LogSourceUpdate,
     MonitorRun,
     PromptMonitor,
     PromptMonitorCreate,
     PromptMonitorUpdate,
     Target,
     TargetCreate,
+    TargetUpdate,
 )
 from .service import run_monitor
 from .storage import storage
@@ -81,6 +83,16 @@ async def get_target(target_id: str) -> Target:
     return Target(**target)
 
 
+@app.put("/targets/{target_id}", response_model=Target)
+async def update_target(target_id: str, payload: TargetUpdate) -> Target:
+    target = storage.get_target(target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+    updates = {k: v for k, v in payload.dict(exclude_unset=True).items()}
+    updated = storage.update_target(target_id, updates)
+    return Target(**(updated or target))
+
+
 @app.delete("/targets/{target_id}")
 async def delete_target(target_id: str) -> dict:
     if not storage.get_target(target_id):
@@ -113,6 +125,18 @@ async def get_log_source(source_id: str) -> LogSource:
     if not source:
         raise HTTPException(status_code=404, detail="Log source not found")
     return LogSource(**source)
+
+
+@app.put("/log-sources/{source_id}", response_model=LogSource)
+async def update_log_source(source_id: str, payload: LogSourceUpdate) -> LogSource:
+    source = storage.get_log_source(source_id)
+    if not source:
+        raise HTTPException(status_code=404, detail="Log source not found")
+    updates = {k: v for k, v in payload.dict(exclude_unset=True).items()}
+    if updates.get("target_id") and not storage.get_target(updates["target_id"]):
+        raise HTTPException(status_code=400, detail="Target not found")
+    updated = storage.update_log_source(source_id, updates)
+    return LogSource(**(updated or source))
 
 
 @app.delete("/log-sources/{source_id}")

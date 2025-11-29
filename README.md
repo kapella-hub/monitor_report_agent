@@ -115,7 +115,25 @@ curl http://localhost:8000/health
 
 The response reports whether the scheduler task is alive and the database connection is reachable.
 
-### 9) Delete resources
+### 9) Update existing resources
+
+- Update a target's metadata:
+
+```bash
+curl -X PUT http://localhost:8000/targets/<target-id> \
+  -H "Content-Type: application/json" \
+  -d '{"name": "trade-bot-host-1a", "connection_config": {"host": "localhost"}}'
+```
+
+- Update a log source (e.g., move to a new container or tweak config):
+
+```bash
+curl -X PUT http://localhost:8000/log-sources/<log-source-id> \
+  -H "Content-Type: application/json" \
+  -d '{"name": "btc-bot-updated", "config": {"container_name": "btc_trading_service_v2"}}'
+```
+
+### 10) Delete resources
 
 - Delete a monitor (removes its run history first):
 

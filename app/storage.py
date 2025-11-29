@@ -171,6 +171,22 @@ class Storage:
         cur = self._execute("DELETE FROM targets WHERE id = ?", (target_id,))
         return cur.rowcount > 0
 
+    def update_target(self, target_id: str, updates: dict) -> dict | None:
+        target = self.get_target(target_id)
+        if not target:
+            return None
+        target.update(updates)
+        self._execute(
+            "UPDATE targets SET name = ?, type = ?, connection_config = ? WHERE id = ?",
+            (
+                target["name"],
+                target["type"],
+                self._to_json(target.get("connection_config")),
+                target_id,
+            ),
+        )
+        return target
+
     @staticmethod
     def _row_to_target(row: sqlite3.Row) -> dict:
         return {
@@ -217,6 +233,28 @@ class Storage:
 
         cur = self._execute("DELETE FROM log_sources WHERE id = ?", (source_id,))
         return cur.rowcount > 0
+
+    def update_log_source(self, source_id: str, updates: dict) -> dict | None:
+        source = self.get_log_source(source_id)
+        if not source:
+            return None
+        source.update(updates)
+        self._execute(
+            """
+            UPDATE log_sources
+            SET target_id = ?, name = ?, mode = ?, config = ?, cursor_state = ?
+            WHERE id = ?
+            """,
+            (
+                source["target_id"],
+                source["name"],
+                source["mode"],
+                self._to_json(source.get("config")),
+                self._to_json(source.get("cursor_state")),
+                source_id,
+            ),
+        )
+        return source
 
     def update_log_source_cursor(self, source_id: str, cursor_state: dict | None) -> None:
         self._execute(
