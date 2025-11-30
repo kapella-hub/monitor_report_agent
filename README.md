@@ -68,8 +68,9 @@ uvicorn app.main:app --reload
 The service stores data in `monitor.db` by default. Override with `DATABASE_PATH` if needed.
 
 Set `SCHEDULER_ENABLED=false` to disable the background dispatcher when you only want manual `run-once`
-invocations (helpful for local testing or running under an external scheduler). When disabled, health
-reports the scheduler as disabled but still returns `status="ok"` if the database is reachable.
+invocations (helpful for local testing or running under an external scheduler). When disabled, `/health`
+reports the scheduler as disabled but still returns `status="ok"` if the database is reachable. Use
+`SCHEDULER_TICK_SECONDS` (default: `1`) to control how often the dispatcher wakes up to look for due monitors.
 
 On startup, the service will auto-create a single local target named by `DEFAULT_TARGET_NAME` when no targets exist. You can
 rename it via the env var or create additional targets via the API at any time.
@@ -119,10 +120,10 @@ curl -X POST http://localhost:8000/log-sources \
 curl -X POST http://localhost:8000/monitors \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "BTC bot anomaly detector",
+    "name": "Grid bot health monitor",
     "target_id": "<target-id>",
     "interval_seconds": 900,
-    "prompt": "You are monitoring a crypto trading bot. Look for errors, stuck loops, abnormal fills, and API failures.",
+    "prompt": "<PASTE YOUR GRID BOT HEALTH MONITORING PROMPT HERE>",
     "llm_provider": "openai",
     "inputs": [
       {"label": "FULL_LOGS", "mode": "command", "command": "docker compose -f docker-compose-multi.yml logs --since 1h"},
@@ -131,7 +132,18 @@ curl -X POST http://localhost:8000/monitors \
       {"label": "ERRORS", "mode": "command", "command": "docker compose -f docker-compose-multi.yml logs --since 1h | grep -E \"ERROR|WARNING|INSUFFICIENT|failed|Exception|Traceback\""}
     ],
     "window_config": {"max_lines": 500, "max_chars": 8000},
-    "notification_config": {"email_recipients": ["ops@example.com"], "notify_on": "alert_only"}
+    "notification_config": {
+      "email_recipients": ["ops@example.com"],
+      "sms_recipients": [],
+      "notify_on": "alert_only"
+    },
+    "remediation_config": {
+      "enabled": true,
+      "trigger_on": ["CRITICAL"],
+      "remediation_endpoint": "https://remediator.example.com/incidents",
+      "max_auto_actions": 5,
+      "require_human_approval": true
+    }
   }'
 ```
 
@@ -223,14 +235,42 @@ The LLM receives a monitoring prompt and aggregated logs grouped by labels like 
 
 ```json
 {
-  "status": "HEALTHY" | "WARNING" | "CRITICAL",
+  "status": "HEALTHY",
   "summary": "short overall summary",
   "report": "multi-section human-readable report",
   "recommendations": ["next steps", "..."]
 }
 ```
 
-Statuses map to internal `ok`, `warn`, and `alert` for notifications.
+Statuses map to internal `ok`, `warn`, and `alert` for notifications. Valid values for `status` are
+"HEALTHY", "WARNING", and "CRITICAL".
+
+### Remediation hook (optional)
+
+When a monitor has `remediation_config.enabled = true` and the LLM result's `status` is included in
+`remediation_config.trigger_on` (e.g. `["CRITICAL"]`), the service emits a remediation incident by
+POSTing JSON to `remediation_config.remediation_endpoint`. The payload looks like:
+
+```json
+{
+  "incident_id": "<uuid>",
+  "monitor_id": "<monitor-id>",
+  "monitor_name": "Grid bot health monitor",
+  "severity": "CRITICAL",
+  "summary": "Short human-readable summary from the LLM",
+  "report": "Full multi-section report from the LLM",
+  "recommendations": ["restart grid bot", "review budget limits"],
+  "logs_excerpt": "truncated snippet of the analyzed logs",
+  "timestamp": "2025-11-30T09:17:00Z",
+  "remediation_metadata": {
+    "max_auto_actions": 5,
+    "require_human_approval": true
+  }
+}
+```
+
+Set `enabled` to `false`, omit `remediation_config`, or leave `remediation_endpoint` empty to turn off
+remediation for a given monitor.
 
 ### 12) Update existing resources
 
@@ -272,7 +312,8 @@ curl -X DELETE http://localhost:8000/targets/<target-id>
 
 ## Extending
 
-- Replace `analyze_logs_with_llm` in `app/llm_client.py` with a real LLM integration (OpenAI, Anthropic, local model, etc.).
+- Add or customize LLM providers in `app/llm_client.py` by implementing the `LLMClient` protocol and wiring them
+  into `get_llm_client` (e.g., additional OpenAI models, local model gateways, or other vendors).
 - Implement a real SMS sender in `app/notifications.py` for production alerts.
 - Add new log reader implementations to `app/log_reader.py` for Kubernetes, journald, or remote hosts.
 
@@ -322,11 +363,12 @@ During execution, the monitor runner:
 ...error and warning lines...
 ```
 
-This aggregated text and your monitor prompt are passed to `analyze_logs_with_llm`. The LLM only receives the labeled log text and never executes commands itself.
+This aggregated text and your monitor prompt are passed to the configured LLM provider (see `app.llm_client`). The LLM only receives the labeled log text and never executes commands itself.
 
 ## LLM behavior & contract
 
-- `analyze_logs_with_llm(monitor_prompt, logs_text)` combines a system role (monitoring assistant) and a user message that includes your monitor prompt plus the aggregated logs.
+- The LLM client combines a monitoring system role with your `prompt` and the aggregated `logs_text` (grouped by
+  labels) before sending the request to the configured provider.
 - The logs will be provided as a single text block, grouped by labels in the form:
 
 ```

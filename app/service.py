@@ -3,8 +3,11 @@ import json
 import logging
 import os
 import subprocess
+import uuid
 from datetime import datetime
 from typing import Any, Iterable
+
+import httpx
 
 from .config import settings
 from .llm_client import get_llm_client
@@ -72,7 +75,9 @@ async def run_monitor(monitor: dict) -> dict:
         run.update(run_updates)
 
         storage.prune_monitor_runs(monitor["id"], settings.max_run_history_per_monitor)
-
+        # First, optionally trigger a remediation incident for CRITICAL/WARNING
+        # results (configurable per monitor), then send notifications.
+        await _maybe_remediate(monitor, run, logs_text, llm_output)
         await _maybe_notify(monitor, run, log_source)
         return run
     except Exception as exc:
@@ -194,6 +199,79 @@ async def _maybe_notify(monitor: dict, run: dict, log_source: dict | None) -> No
         await loop.run_in_executor(None, send_email, email_recipients, subject, body)
     if sms_recipients:
         await loop.run_in_executor(None, send_sms, sms_recipients, body)
+
+
+async def _maybe_remediate(
+    monitor: dict,
+    run: dict,
+    logs_text: str,
+    llm_output: dict,
+) -> None:
+    """Trigger an external remediation agent when configured.
+
+    This is best-effort only: failures are logged but do not change the
+    outcome of the monitor run.
+    """
+
+    config = monitor.get("remediation_config") or {}
+    if not isinstance(config, dict):
+        return
+
+    if not config.get("enabled"):
+        return
+
+    endpoint = config.get("remediation_endpoint")
+    if not endpoint:
+        logger.warning(
+            "Remediation enabled for monitor %s but no remediation_endpoint configured",
+            monitor.get("id"),
+        )
+        return
+
+    raw_status = (llm_output.get("status") or "").strip().upper()
+    triggers = [s.strip().upper() for s in (config.get("trigger_on") or []) if isinstance(s, str)]
+    if triggers and raw_status not in triggers:
+        return
+
+    logs_excerpt = _truncate_storage(logs_text, min(settings.run_record_max_chars, 4000))
+
+    incident_id = uuid.uuid4().hex
+    incident = {
+        "incident_id": incident_id,
+        "monitor_id": monitor.get("id"),
+        "monitor_name": monitor.get("name"),
+        "severity": raw_status or "UNKNOWN",
+        "summary": run.get("summary") or "",
+        "report": run.get("details") or "",
+        "recommendations": llm_output.get("recommendations") or [],
+        "logs_excerpt": logs_excerpt or "",
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+    # Forward selected remediation metadata for the external agent.
+    meta = {
+        "max_auto_actions": config.get("max_auto_actions"),
+        "require_human_approval": config.get("require_human_approval"),
+    }
+    # Drop keys with None to avoid cluttering the payload.
+    incident["remediation_metadata"] = {k: v for k, v in meta.items() if v is not None}
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(endpoint, json=incident)
+        logger.info(
+            "Remediation incident %s for monitor %s sent to %s (status=%s)",
+            incident_id,
+            monitor.get("id"),
+            endpoint,
+            response.status_code,
+        )
+    except Exception:
+        logger.exception(
+            "Failed to POST remediation incident for monitor %s to %s",
+            monitor.get("id"),
+            endpoint,
+        )
 
 
 async def _collect_monitor_logs(

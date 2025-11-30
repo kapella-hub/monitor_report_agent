@@ -91,6 +91,26 @@ class NotificationConfig(BaseModel):
     notify_on: NotifyOn = "alert_only"  # alert_only | warn_and_alert | all
 
 
+class RemediationConfig(BaseModel):
+    """Per-monitor remediation hook configuration.
+
+    The fields here are forwarded to the external remediation agent as
+    metadata; this service does not enforce limits like max_auto_actions.
+    """
+
+    enabled: bool = False
+    trigger_on: list[str] = Field(
+        default_factory=lambda: ["CRITICAL"],
+        description="LLM-level statuses (e.g. CRITICAL, WARNING) that should trigger remediation.",
+    )
+    remediation_endpoint: str | None = Field(
+        default=None,
+        description="HTTP endpoint for the remediation agent.",
+    )
+    max_auto_actions: int | None = Field(default=None)
+    require_human_approval: bool | None = Field(default=None)
+
+
 class PromptMonitorCreate(BaseModel):
     name: str
     target_id: str
@@ -100,6 +120,7 @@ class PromptMonitorCreate(BaseModel):
     inputs: list[MonitorInput] = Field(default_factory=list)
     window_config: WindowConfig | None = None
     notification_config: NotificationConfig | None = None
+    remediation_config: RemediationConfig | None = None
     llm_provider: Optional[str] = None
     llm_provider_metadata: Optional[dict] = None
     enabled: bool = True
@@ -134,6 +155,7 @@ class PromptMonitorUpdate(BaseModel):
     inputs: Optional[list[MonitorInput]] = Field(default=None)
     window_config: Optional[WindowConfig] = None
     notification_config: Optional[NotificationConfig] = None
+    remediation_config: Optional[RemediationConfig] = None
     llm_provider: Optional[str] = None
     llm_provider_metadata: Optional[dict] = None
     enabled: Optional[bool] = None
