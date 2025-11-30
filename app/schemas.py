@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Optional
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, root_validator, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 
 from .llm_client import SUPPORTED_LLM_PROVIDERS
 
@@ -23,9 +23,7 @@ class TargetCreate(BaseModel):
 
 class Target(TargetCreate):
     id: str = Field(default_factory=generate_id)
-
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TargetUpdate(BaseModel):
@@ -45,9 +43,7 @@ class LogSourceCreate(BaseModel):
 
 class LogSource(LogSourceCreate):
     id: str = Field(default_factory=generate_id)
-
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class LogSourceUpdate(BaseModel):
@@ -72,14 +68,16 @@ class MonitorInput(BaseModel):
     workdir: str | None = None
     env: dict[str, str] | None = None
 
-    @validator("label")
+    @field_validator("label")
+    @classmethod
     def label_must_not_be_blank(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
             raise ValueError("label must not be empty")
         return cleaned
 
-    @validator("command")
+    @field_validator("command")
+    @classmethod
     def command_must_not_be_blank(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
@@ -106,7 +104,8 @@ class PromptMonitorCreate(BaseModel):
     llm_provider_metadata: Optional[dict] = None
     enabled: bool = True
 
-    @validator("llm_provider")
+    @field_validator("llm_provider")
+    @classmethod
     def validate_llm_provider(cls, value: Optional[str]) -> Optional[str]:
         if value is None:
             return value
@@ -115,15 +114,15 @@ class PromptMonitorCreate(BaseModel):
             raise ValueError(f"llm_provider must be one of {sorted(SUPPORTED_LLM_PROVIDERS)}")
         return normalized
 
-    @root_validator(skip_on_failure=True)
-    def ensure_unique_labels(cls, values: dict) -> dict:
-        inputs = values.get("inputs") or []
+    @model_validator(mode="after")
+    def ensure_unique_labels(self) -> "PromptMonitorCreate":
+        inputs = self.inputs or []
         labels = [item.label.lower() for item in inputs]
         if len(labels) != len(set(labels)):
             raise ValueError("monitor inputs must have unique labels")
-        if not inputs and not values.get("log_source_id"):
+        if not inputs and not self.log_source_id:
             raise ValueError("either inputs or log_source_id must be provided")
-        return values
+        return self
 
 
 class PromptMonitorUpdate(BaseModel):
@@ -139,7 +138,8 @@ class PromptMonitorUpdate(BaseModel):
     llm_provider_metadata: Optional[dict] = None
     enabled: Optional[bool] = None
 
-    @validator("llm_provider")
+    @field_validator("llm_provider")
+    @classmethod
     def validate_llm_provider(cls, value: Optional[str]) -> Optional[str]:
         if value is None:
             return value
@@ -148,23 +148,22 @@ class PromptMonitorUpdate(BaseModel):
             raise ValueError(f"llm_provider must be one of {sorted(SUPPORTED_LLM_PROVIDERS)}")
         return normalized
 
-    @root_validator(skip_on_failure=True)
-    def ensure_unique_labels(cls, values: dict) -> dict:
-        inputs = values.get("inputs") or []
-        labels = [item.label.lower() for item in inputs]
-        if inputs and len(labels) != len(set(labels)):
-            raise ValueError("monitor inputs must have unique labels")
-        if inputs == [] and not values.get("log_source_id"):
-            raise ValueError("either inputs or log_source_id must be provided")
-        return values
+    @model_validator(mode="after")
+    def ensure_unique_labels(self) -> "PromptMonitorUpdate":
+        inputs = self.inputs
+        if inputs is not None:
+            labels = [item.label.lower() for item in inputs]
+            if len(labels) != len(set(labels)):
+                raise ValueError("monitor inputs must have unique labels")
+            if inputs == [] and not self.log_source_id:
+                raise ValueError("either inputs or log_source_id must be provided")
+        return self
 
 
 class PromptMonitor(PromptMonitorCreate):
     id: str = Field(default_factory=generate_id)
     last_run_at: str | None = None
-
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Runs
@@ -182,8 +181,7 @@ class MonitorRun(BaseModel):
     details: Optional[str] = None
     error_message: Optional[str] = None
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MonitorStatus(BaseModel):

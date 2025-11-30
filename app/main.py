@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import List
 
@@ -39,13 +40,9 @@ def require_api_key(x_api_key: str | None = Header(default=None, alias="X-API-Ke
     raise HTTPException(status_code=401, detail="Invalid or missing API token")
 
 
-app = FastAPI(title="AI Log Monitor", dependencies=[Depends(require_api_key)])
-
-
-@app.on_event("startup")
-async def startup_event() -> None:
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     _ensure_default_target()
-    # Kick off scheduler
     if settings.scheduler_enabled:
         app.state.scheduler_task = asyncio.create_task(
             monitor_dispatcher(run_monitor, settings.scheduler_tick_seconds)
@@ -55,17 +52,20 @@ async def startup_event() -> None:
         app.state.scheduler_task = None
         logger.info("Scheduler disabled via SCHEDULER_ENABLED=false")
 
+    try:
+        yield
+    finally:
+        task = getattr(app.state, "scheduler_task", None)
+        if task:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                logger.info("Scheduler task cancelled cleanly")
+        storage.close()
 
-@app.on_event("shutdown")
-async def shutdown_event() -> None:
-    task = getattr(app.state, "scheduler_task", None)
-    if task:
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            logger.info("Scheduler task cancelled cleanly")
-    storage.close()
+
+app = FastAPI(title="AI Log Monitor", dependencies=[Depends(require_api_key)], lifespan=lifespan)
 
 
 def _ensure_default_target() -> None:
@@ -74,7 +74,7 @@ def _ensure_default_target() -> None:
     if existing:
         return
     default_target = Target(name=settings.default_target_name, type="local")
-    storage.create_target(default_target.dict())
+    storage.create_target(default_target.model_dump())
     logger.info("Created default target '%s'", settings.default_target_name)
 
 
@@ -114,8 +114,8 @@ async def llm_providers(provider: str | None = None) -> dict:
 # Targets
 @app.post("/targets", response_model=Target)
 async def create_target(payload: TargetCreate) -> Target:
-    target = Target(**payload.dict())
-    storage.create_target(target.dict())
+    target = Target(**payload.model_dump())
+    storage.create_target(target.model_dump())
     return target
 
 
@@ -137,7 +137,7 @@ async def update_target(target_id: str, payload: TargetUpdate) -> Target:
     target = storage.get_target(target_id)
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
-    updates = {k: v for k, v in payload.dict(exclude_unset=True).items()}
+    updates = {k: v for k, v in payload.model_dump(exclude_unset=True).items()}
     updated = storage.update_target(target_id, updates)
     return Target(**(updated or target))
 
@@ -158,8 +158,8 @@ async def delete_target(target_id: str) -> dict:
 async def create_log_source(payload: LogSourceCreate) -> LogSource:
     if not storage.get_target(payload.target_id):
         raise HTTPException(status_code=400, detail="Target not found")
-    source = LogSource(**payload.dict())
-    storage.create_log_source(source.dict())
+    source = LogSource(**payload.model_dump())
+    storage.create_log_source(source.model_dump())
     return source
 
 
@@ -181,7 +181,7 @@ async def update_log_source(source_id: str, payload: LogSourceUpdate) -> LogSour
     source = storage.get_log_source(source_id)
     if not source:
         raise HTTPException(status_code=404, detail="Log source not found")
-    updates = {k: v for k, v in payload.dict(exclude_unset=True).items()}
+    updates = {k: v for k, v in payload.model_dump(exclude_unset=True).items()}
     if updates.get("target_id") and not storage.get_target(updates["target_id"]):
         raise HTTPException(status_code=400, detail="Target not found")
     updated = storage.update_log_source(source_id, updates)
@@ -206,8 +206,8 @@ async def create_monitor(payload: PromptMonitorCreate) -> PromptMonitor:
         raise HTTPException(status_code=400, detail="Target not found")
     if payload.log_source_id and not storage.get_log_source(payload.log_source_id):
         raise HTTPException(status_code=400, detail="Log source not found")
-    monitor = PromptMonitor(**payload.dict())
-    storage.create_monitor(monitor.dict())
+    monitor = PromptMonitor(**payload.model_dump())
+    storage.create_monitor(monitor.model_dump())
     return monitor
 
 
@@ -231,7 +231,7 @@ async def update_monitor(monitor_id: str, payload: PromptMonitorUpdate) -> Promp
         raise HTTPException(status_code=404, detail="Monitor not found")
     updates = {
         k: v
-        for k, v in payload.dict(exclude_unset=True).items()
+        for k, v in payload.model_dump(exclude_unset=True).items()
         if v is not None or isinstance(v, bool)
     }
     if updates.get("target_id") and not storage.get_target(updates["target_id"]):
