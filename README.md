@@ -136,7 +136,7 @@ curl -X POST http://localhost:8000/monitors \
 
 Add optional `timeout_seconds`, `workdir`, or `env` keys to any input if individual commands need different limits, working directories, or environment overrides than the global defaults.
 
-If you prefer to reuse a stored log source (file or docker logs) instead of explicit command inputs, set `inputs` to an empty array and provide `log_source_id`. The runner will read from that source, update its cursor, and pass a labeled block `[<log_source_name>]` to the LLM alongside your prompt.
+If you prefer to reuse a stored log source (file or docker logs) instead of explicit command inputs, set `inputs` to an empty array and provide `log_source_id`. The runner will read from that source, update its cursor, and pass a labeled block `[<log_source_name>]` to the LLM alongside your prompt. You can also combine both approaches—command inputs plus a saved log source—and the runner will aggregate all labeled sections together before calling the LLM.
 
 ### 4) Trigger a manual run
 

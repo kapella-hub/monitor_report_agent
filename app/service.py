@@ -242,6 +242,8 @@ async def _collect_monitor_logs(
             )
         )
 
+    total_inputs = len(pending) + (1 if log_source else 0)
+
     for label, task in pending:
         try:
             output = await task
@@ -251,16 +253,8 @@ async def _collect_monitor_logs(
             logger.exception("Failed to collect input %s for monitor %s", label, monitor.get("id"))
             logs_by_label[label] = f"[collection_error] {exc}"
 
-    if logs_by_label:
-        sections = []
-        for label, text in logs_by_label.items():
-            sections.append(f"[{label}]\n{text}")
-
-        combined = "\n\n".join(sections)
-        combined = _truncate_output(combined, window_config)
-        return combined, success_count, len(pending), log_source
-
     if log_source:
+        source_label = log_source.get("name", "log_source")
         try:
             content, cursor = await loop.run_in_executor(
                 None,
@@ -272,16 +266,23 @@ async def _collect_monitor_logs(
             )
             if cursor is not None:
                 storage.update_log_source_cursor(log_source["id"], cursor)
-        except Exception:
+            logs_by_label[source_label] = _truncate_output(content, window_config)
+            success_count += 1
+        except Exception as exc:
             logger.exception(
                 "Failed to collect logs from source %s for monitor %s", log_source.get("id"), monitor.get("id")
             )
-            raise
+            logs_by_label[source_label] = f"[collection_error] {exc}"
 
-        labeled = f"[{log_source.get('name', 'log_source')}]\n{content}"
-        labeled = _truncate_output(labeled, window_config)
-        return labeled, 1, 1, log_source
-    return "", success_count, len(pending), log_source
+    if logs_by_label:
+        sections = []
+        for label, text in logs_by_label.items():
+            sections.append(f"[{label}]\n{text}")
+
+        combined = "\n\n".join(sections)
+        combined = _truncate_output(combined, window_config)
+        return combined, success_count, total_inputs, log_source
+    return "", success_count, total_inputs, log_source
 
 
 def _run_command(
