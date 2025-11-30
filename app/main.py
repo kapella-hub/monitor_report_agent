@@ -13,6 +13,7 @@ from .schemas import (
     LogSource,
     LogSourceCreate,
     LogSourceUpdate,
+    MonitorCollection,
     MonitorRun,
     MonitorStatus,
     PromptMonitor,
@@ -22,7 +23,7 @@ from .schemas import (
     TargetCreate,
     TargetUpdate,
 )
-from .service import run_monitor
+from .service import collect_monitor_inputs, run_monitor
 from .storage import storage
 from .llm_client import validate_llm_provider_config, supported_llm_providers
 
@@ -260,6 +261,26 @@ async def run_monitor_once(monitor_id: str) -> MonitorRun:
     storage.touch_monitor_last_run(monitor_id)
     run = await run_monitor(monitor)
     return MonitorRun(**run)
+
+
+@app.post("/monitors/{monitor_id}/collect", response_model=MonitorCollection)
+async def collect_monitor(monitor_id: str) -> MonitorCollection:
+    monitor = storage.get_monitor(monitor_id)
+    if not monitor:
+        raise HTTPException(status_code=404, detail="Monitor not found")
+
+    try:
+        logs_text, success, total, log_source = await collect_monitor_inputs(monitor)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return MonitorCollection(
+        logs_text=logs_text,
+        success_count=success,
+        total_inputs=total,
+        log_source_id=log_source.get("id") if log_source else None,
+        log_source_name=log_source.get("name") if log_source else None,
+    )
 
 
 @app.get("/monitors/{monitor_id}/status", response_model=MonitorStatus)

@@ -144,32 +144,40 @@ If you prefer to reuse a stored log source (file or docker logs) instead of expl
 curl -X POST http://localhost:8000/monitors/<monitor-id>/run-once
 ```
 
-### 5) Toggle a monitor on/off without editing the whole record
+### 5) Collect inputs without invoking the LLM (debugging/preview)
+
+```bash
+curl -X POST http://localhost:8000/monitors/<monitor-id>/collect
+```
+
+Returns the aggregated labeled log text along with counts of successful inputs so you can verify commands and truncation behavior before running the full LLM analysis.
+
+### 6) Toggle a monitor on/off without editing the whole record
 
 ```bash
 curl -X POST http://localhost:8000/monitors/<monitor-id>/disable
 curl -X POST http://localhost:8000/monitors/<monitor-id>/enable
 ```
 
-### 6) Test a log source connection
+### 7) Test a log source connection
 
 ```bash
 curl -X POST http://localhost:8000/log-sources/<log-source-id>/test
 ```
 
-### 7) List runs for a monitor
+### 8) List runs for a monitor
 
 ```bash
 curl http://localhost:8000/monitors/<monitor-id>/runs
 ```
 
-### 8) Fetch the latest run for quick status
+### 9) Fetch the latest run for quick status
 
 ```bash
 curl http://localhost:8000/monitors/<monitor-id>/runs/latest
 ```
 
-### 9) Monitor scheduling status snapshots
+### 10) Monitor scheduling status snapshots
 
 Fetch status for a single monitor (enabled flag, next run, due-in seconds, and latest run info):
 

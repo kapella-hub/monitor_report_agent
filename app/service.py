@@ -38,22 +38,7 @@ async def run_monitor(monitor: dict) -> dict:
     storage.create_monitor_run(run)
 
     try:
-        target = storage.get_target(monitor.get("target_id")) if monitor.get("target_id") else None
-        log_source = (
-            storage.get_log_source(monitor.get("log_source_id")) if monitor.get("log_source_id") else None
-        )
-        if not target and log_source:
-            target = storage.get_target(log_source.get("target_id")) if log_source else None
-        if not target:
-            raise RuntimeError("Monitor references missing target")
-
-        logs_text, success_count, total_inputs = await _collect_monitor_logs(
-            monitor, log_source
-        )
-        if total_inputs == 0:
-            raise RuntimeError("No log input configured for this monitor")
-        if success_count == 0:
-            raise RuntimeError("All log inputs failed to collect")
+        logs_text, success_count, total_inputs, log_source = await collect_monitor_inputs(monitor)
 
         prompt = monitor["prompt"]
         llm_input = json.dumps(
@@ -99,6 +84,29 @@ async def run_monitor(monitor: dict) -> dict:
         run.update(updates)
         storage.prune_monitor_runs(monitor["id"], settings.max_run_history_per_monitor)
         return run
+
+
+async def collect_monitor_inputs(monitor: dict) -> tuple[str, int, int, dict | None]:
+    """Collect monitor inputs or log source content without invoking the LLM."""
+
+    target = storage.get_target(monitor.get("target_id")) if monitor.get("target_id") else None
+    log_source = (
+        storage.get_log_source(monitor.get("log_source_id")) if monitor.get("log_source_id") else None
+    )
+    if not target and log_source:
+        target = storage.get_target(log_source.get("target_id")) if log_source else None
+    if not target:
+        raise RuntimeError("Monitor references missing target")
+
+    logs_text, success_count, total_inputs, log_source = await _collect_monitor_logs(
+        monitor, log_source
+    )
+    if total_inputs == 0:
+        raise RuntimeError("No log input configured for this monitor")
+    if success_count == 0:
+        raise RuntimeError("All log inputs failed to collect")
+
+    return logs_text, success_count, total_inputs, log_source
 
 
 def _should_notify(notify_on: str, status: str) -> bool:
@@ -187,7 +195,7 @@ async def _maybe_notify(monitor: dict, run: dict, log_source: dict | None) -> No
 
 async def _collect_monitor_logs(
     monitor: dict, log_source: dict | None = None
-) -> tuple[str, int, int]:
+) -> tuple[str, int, int, dict | None]:
     inputs: Iterable[dict] = monitor.get("inputs") or []
     window_config = monitor.get("window_config") or {}
     logs_by_label: dict[str, str] = {}
@@ -250,7 +258,7 @@ async def _collect_monitor_logs(
 
         combined = "\n\n".join(sections)
         combined = _truncate_output(combined, window_config)
-        return combined, success_count, len(pending)
+        return combined, success_count, len(pending), log_source
 
     if log_source:
         try:
@@ -272,9 +280,8 @@ async def _collect_monitor_logs(
 
         labeled = f"[{log_source.get('name', 'log_source')}]\n{content}"
         labeled = _truncate_output(labeled, window_config)
-        return labeled, 1, 1
-
-    return "", success_count, len(pending)
+        return labeled, 1, 1, log_source
+    return "", success_count, len(pending), log_source
 
 
 def _run_command(

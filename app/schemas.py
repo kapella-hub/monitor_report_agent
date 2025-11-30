@@ -193,3 +193,11 @@ class MonitorStatus(BaseModel):
     due_in_seconds: Optional[float]
     scheduler_enabled: bool
     latest_run: Optional[MonitorRun] = None
+
+
+class MonitorCollection(BaseModel):
+    logs_text: str
+    success_count: int
+    total_inputs: int
+    log_source_id: Optional[str] = None
+    log_source_name: Optional[str] = None
