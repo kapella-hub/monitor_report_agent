@@ -43,5 +43,24 @@ def send_sms(to: Iterable[str], body: str) -> None:
     if not recipients:
         return
 
-    # Stub implementation. Replace with a real SMS provider (e.g., Twilio) later.
-    logger.info("[SMS] Would send to %s: %s", recipients, body)
+    provider = (settings.sms_provider or "stub").lower()
+    if provider == "twilio":
+        if not (settings.twilio_account_sid and settings.twilio_auth_token and settings.twilio_from_number):
+            logger.warning("Twilio SMS not configured; skipping send")
+            return
+        try:
+            from twilio.rest import Client  # type: ignore
+        except Exception:
+            logger.exception("Twilio dependency missing; install twilio to enable SMS")
+            return
+
+        client = Client(settings.twilio_account_sid, settings.twilio_auth_token)
+        for dest in recipients:
+            try:
+                client.messages.create(body=body, from_=settings.twilio_from_number, to=dest)
+            except Exception:
+                logger.exception("Failed to send SMS to %s via Twilio", dest)
+        return
+
+    # Default stub implementation when no provider is configured
+    logger.info("[SMS:%s] Would send to %s: %s", provider, recipients, body)

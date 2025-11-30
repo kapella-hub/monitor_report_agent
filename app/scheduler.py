@@ -26,6 +26,8 @@ async def monitor_dispatcher(run_monitor: Callable[[dict], Awaitable[None]], tic
                 now = datetime.utcnow()
                 monitors = storage.list_monitors()
                 for monitor in monitors:
+                    if not monitor.get("enabled", True):
+                        continue
                     last_run_at = monitor.get("last_run_at")
                     due = False
                     if not last_run_at:
