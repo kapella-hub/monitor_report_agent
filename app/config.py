@@ -27,6 +27,7 @@ class Settings:
     qbusiness_app_id: str | None = getenv("QBUSINESS_APP_ID")
     aws_region: str | None = getenv("AWS_REGION")
     llm_max_chars: int = int(getenv("LLM_MAX_CHARS", "16000"))
+    run_record_max_chars: int = int(getenv("RUN_RECORD_MAX_CHARS", "16000"))
 
     smtp_host: str | None = getenv("SMTP_HOST")
     smtp_port: int = int(getenv("SMTP_PORT", "587"))

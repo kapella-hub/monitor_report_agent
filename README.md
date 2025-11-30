@@ -34,6 +34,7 @@ export SMTP_USERNAME=user
 export SMTP_PASSWORD=pass
 export SMTP_FROM=alerts@example.com
 export MAX_RUN_HISTORY_PER_MONITOR=200 # optional: cap stored runs per monitor
+export RUN_RECORD_MAX_CHARS=16000       # optional: truncate stored LLM input/output to this many chars
 export DATABASE_BACKEND=sqlite         # or postgres if desired
 export DEFAULT_TARGET_NAME=local       # optional: auto-created target name when none exist
 # Optional Twilio SMS settings (defaults to stub logging)
@@ -212,7 +213,7 @@ Filter to a specific provider (e.g., `openai`, `amazon_q`, `stub`) to verify cre
 curl "http://localhost:8000/llm/providers?provider=openai"
 ```
 
-Run history is automatically trimmed after each execution to keep at most `MAX_RUN_HISTORY_PER_MONITOR` records per monitor (default: 200), so long-running deployments don't accumulate unbounded history. Set the environment variable to adjust retention.
+Run history is automatically trimmed after each execution to keep at most `MAX_RUN_HISTORY_PER_MONITOR` records per monitor (default: 200), so long-running deployments don't accumulate unbounded history. Set the environment variable to adjust retention. LLM request/response payloads stored on runs are truncated to `RUN_RECORD_MAX_CHARS` (default: 16000) to avoid oversized rows when large prompts or log bundles are used.
 
 Each run record stores the `llm_provider` and `llm_provider_metadata` (e.g., OpenAI model name or Amazon Q region/app ID) so you can verify which backend produced a given result when debugging.
 

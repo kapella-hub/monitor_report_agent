@@ -44,3 +44,9 @@ def test_parse_llm_json_invalid_wraps_warning():
     assert parsed["report"] == raw
     assert "recommendations" in parsed
 
+
+def test_truncate_storage_keeps_tail():
+    text = "A" * 10 + "B" * 10
+    truncated = service._truncate_storage(text, 8)
+    assert truncated == "B" * 8
+

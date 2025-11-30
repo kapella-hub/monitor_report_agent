@@ -51,6 +51,7 @@ async def run_monitor(monitor: dict) -> dict:
                 "logs": logs_text,
             }
         )
+        llm_input = _truncate_storage(llm_input, settings.run_record_max_chars)
         llm_client = get_llm_client(provider)
         llm_output = await llm_client.analyze_logs(prompt, logs_text, provider_metadata=provider_metadata)
         status = _map_llm_status(llm_output.get("status"))
@@ -61,7 +62,9 @@ async def run_monitor(monitor: dict) -> dict:
             "llm_provider": provider,
             "llm_provider_metadata": json.dumps(provider_metadata) if provider_metadata else None,
             "llm_raw_input": llm_input,
-            "llm_raw_output": json.dumps(llm_output),
+            "llm_raw_output": _truncate_storage(
+                json.dumps(llm_output), settings.run_record_max_chars
+            ),
             "summary": llm_output.get("summary"),
             "details": llm_output.get("report") or llm_output.get("details"),
         }
@@ -320,3 +323,11 @@ def _truncate_output(text: str, window_config: dict) -> str:
     if max_chars and len(truncated) > max_chars:
         truncated = truncated[-max_chars:]
     return truncated
+
+
+def _truncate_storage(text: str | None, max_chars: int | None) -> str | None:
+    if text is None or max_chars is None:
+        return text
+    if len(text) <= max_chars:
+        return text
+    return text[-max_chars:]
